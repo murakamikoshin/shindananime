@@ -352,18 +352,208 @@ function replace(i) {
 }
 
 /* ------------------------------------------------------------ 共有 */
+/* TOP3（運命の1作＋次点2作）が決まるたびに shown が変わるので、
+   文面・画像はボタンを押した時点の shown から毎回作る（使い回さない） */
+function shareText(code, name) {
+  const top = shown[0];
+  return CONFIG.shareText.replace('{code}', code).replace('{name}', name)
+    .replace('{title}', top.work.t).replace('{match}', top.match);
+}
+
 function setupShare(code, name) {
-  const text = CONFIG.shareText.replace('{code}', code).replace('{name}', name);
-  const params = new URLSearchParams({ text, url: CONFIG.appUrl, hashtags: CONFIG.shareTags.join(',') });
-  $('share-x').href = 'https://x.com/intent/post?' + params;
+  /* shown は「見た→別の作品」や放送年の絞り込みで後から変わるので、
+     押した時点の TOP3 で文面を作り直してから開く */
+  const shareX = $('share-x');
+  const refreshShareX = () => {
+    const params = new URLSearchParams({ text: shareText(code, name), url: CONFIG.appUrl, hashtags: CONFIG.shareTags.join(',') });
+    shareX.href = 'https://x.com/intent/post?' + params;
+  };
+  refreshShareX();
+  shareX.addEventListener('click', refreshShareX);
+
   const nat = $('share-native');
-  if (navigator.share) {
-    nat.hidden = false;
-    nat.onclick = () => navigator.share({
-      title: 'ガチアニメ診断', url: CONFIG.appUrl,
-      text: text + ' ' + CONFIG.shareTags.map((t) => '#' + t).join(' '),
-    }).catch(() => {});
+  const dummy = new File([''], 'x.png', { type: 'image/png' });
+  const canFiles = !!(navigator.canShare && navigator.canShare({ files: [dummy] }));
+  nat.textContent = canFiles ? '結果の画像をほかのアプリで送る' : '結果の画像を保存';
+  nat.onclick = async () => {
+    nat.disabled = true;
+    const label = nat.textContent;
+    nat.textContent = '画像を作っています…';
+    try {
+      const blob = await buildShareImage(code, name);
+      const file = new File([blob], 'gachianime-shindan.png', { type: 'image/png' });
+      if (canFiles && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'ガチアニメ診断', text: shareText(code, name) });
+      } else {
+        const a = el('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'gachianime-shindan.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') console.error(e);
+    } finally {
+      nat.disabled = false;
+      nat.textContent = label;
+    }
+  };
+}
+
+/* ------------------------------------------------------- 共有画像づくり */
+const SHARE_W = 1080, SHARE_H = 1350;
+const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif';
+
+/* CORS 許可（Access-Control-Allow-Origin）が無い画像は、読めても canvas から
+   書き出す時に SecurityError になる。crossOrigin='anonymous' を付けておけば
+   許可の無いサーバーは読み込み自体が失敗するので、その時はグラデーションに逃がす */
+function loadImageSafe(url, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); resolve(null); };
+    img.src = url;
+  });
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* 日本語には単語の区切りが無いので、英数字のかたまりだけ崩さずに1文字ずつ詰める */
+function wrapLines(ctx, text, maxWidth, maxLines) {
+  const tokens = text.match(/[A-Za-z0-9!?！？．.,、。～〜\-…]+|./gs) || [];
+  const all = [];
+  let line = '';
+  for (const t of tokens) {
+    const test = line + t;
+    if (line && ctx.measureText(test).width > maxWidth) { all.push(line); line = t; }
+    else line = test;
   }
+  if (line) all.push(line);
+  if (all.length <= maxLines) return all;
+  const lines = all.slice(0, maxLines);
+  let last = lines[maxLines - 1];
+  while (last.length > 1 && ctx.measureText(last + '…').width > maxWidth) last = last.slice(0, -1);
+  lines[maxLines - 1] = last + '…';
+  return lines;
+}
+
+function drawBadge(ctx, text, x, y, { align = 'left', font, fg = '#fff', bg = 'rgba(7,12,23,.72)' }) {
+  ctx.font = font;
+  const padX = 18, h = 44;
+  const w = ctx.measureText(text).width + padX * 2;
+  const bx = align === 'right' ? x - w : x;
+  roundRectPath(ctx, bx, y, w, h, h / 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, bx + padX, y + h / 2 + 1);
+}
+
+async function drawWorkCard(ctx, c, x, y, w, h, label, big) {
+  roundRectPath(ctx, x, y, w, h, 28);
+  ctx.save();
+  ctx.clip();
+
+  const img = await loadImageSafe(CONFIG.showImages ? c.work.img : null);
+  if (img) {
+    const scale = Math.max(w / img.width, h / img.height);
+    const iw = img.width * scale, ih = img.height * scale;
+    ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+    const grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, 'rgba(7,12,23,.1)');
+    grad.addColorStop(1, 'rgba(7,12,23,.92)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+  } else {
+    const hu = hue(c.work.t);
+    const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, `hsl(${hu} 70% 38%)`);
+    grad.addColorStop(1, `hsl(${(hu + 70) % 360} 70% 20%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+
+  drawBadge(ctx, label, x + 20, y + 20, { font: `900 ${big ? 26 : 20}px ${FONT}`, fg: '#ffc44d' });
+  drawBadge(ctx, `${c.match}%適合`, x + w - 20, y + 20, { align: 'right', font: `900 ${big ? 26 : 20}px ${FONT}` });
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#fff';
+  const size = big ? 46 : 32, lh = big ? 52 : 38, maxLines = big ? 3 : 2;
+  ctx.font = `900 ${size}px ${FONT}`;
+  const lines = wrapLines(ctx, c.work.t, w - 48, maxLines);
+  let ty = y + h - 24 - (lines.length - 1) * lh;
+  for (const ln of lines) { ctx.fillText(ln, x + 24, ty); ty += lh; }
+}
+
+async function buildShareImage(code, name) {
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_W;
+  canvas.height = SHARE_H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#070c17';
+  ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  const glow = (cx, cy, color) => {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, SHARE_W * .8);
+    g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  };
+  glow(SHARE_W * .1, 0, 'rgba(125,107,255,.28)');
+  glow(SHARE_W, SHARE_H * .12, 'rgba(255,92,147,.22)');
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ffc44d';
+  ctx.font = `900 32px ${FONT}`;
+  ctx.fillText('ガチアニメ診断', SHARE_W / 2, 74);
+
+  ctx.font = `900 84px ${FONT}`;
+  ctx.fillText(code, SHARE_W / 2, 176);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `900 44px ${FONT}`;
+  const nameLine = wrapLines(ctx, `【${name}型】`, SHARE_W - 100, 1)[0];
+  ctx.fillText(nameLine, SHARE_W / 2, 232);
+
+  ctx.fillStyle = '#ff5c93';
+  ctx.font = `900 26px ${FONT}`;
+  ctx.fillText('あなたに今刺さる3作', SHARE_W / 2, 288);
+
+  const cardX = 60, cardW = SHARE_W - 120;
+  const rows = [
+    { y: 316, h: 330, label: '運命の1作', big: true },
+    { y: 674, h: 186, label: '次点1', big: false },
+    { y: 880, h: 186, label: '次点2', big: false },
+  ];
+  for (let i = 0; i < rows.length && i < shown.length; i++) {
+    await drawWorkCard(ctx, shown[i], cardX, rows[i].y, cardW, rows[i].h, rows[i].label, rows[i].big);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9aa6c2';
+  ctx.font = `bold 26px ${FONT}`;
+  ctx.fillText('あなたのタイプは？ 今すぐ無料診断', SHARE_W / 2, 1250);
+  ctx.fillStyle = '#fff';
+  ctx.font = `900 30px ${FONT}`;
+  ctx.fillText(CONFIG.appUrl.replace(/^https?:\/\//, ''), SHARE_W / 2, 1296);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
 /* ------------------------------------------------------------ はじまり */

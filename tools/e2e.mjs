@@ -118,8 +118,9 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
 
   const share = new URL(await page.getAttribute('#share-x', 'href'));
   ok(share.origin === 'https://x.com', 'シェア先');
-  ok(share.searchParams.get('text') === '私のアニメ診断タイプは【RDCP-VM：深淵を覗く考察コレクター型】でした！あなたにぴったりの神アニメは…？', 'シェア文面');
+  ok(share.searchParams.get('text') === `私のアニメ診断タイプは【RDCP-VM：深淵を覗く考察コレクター型】でした！運命の1作は「${fate}」（${pct.match(/[\d.]+(?=%適合)/)[0]}%適合）。あなたにぴったりの神アニメは…？`, 'シェア文面（運命の1作も入る）');
   ok(share.searchParams.get('hashtags') === 'アニメ診断,アニメ', 'ハッシュタグ');
+  ok((await page.textContent('#share-native')).includes('画像'), '画像で送るボタンがある');
   ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)), `${vp.name}: 横にはみ出さない`);
 
   if (phone) {

@@ -605,6 +605,19 @@ def _meta(soup, prop):
     return (el.get('content') or '').strip() if el else ''
 
 
+def _ld_image(ld):
+    """JSON-LD の image。og:image は SNS 共有用の 240x240 正方形サムネで、
+    ポスターが正方形でない作品は余白に Filmarks のロゴが入る（見た目が崩れる）。
+    JSON-LD の image は元のポスター比率（260x364）のままでロゴが入らないので、
+    こちらを優先する（見つからない時だけ og:image に戻す）"""
+    img = ld.get('image')
+    if isinstance(img, list):
+        img = img[0] if img else None
+    if isinstance(img, dict):
+        return (img.get('url') or '').strip()
+    return (img or '').strip() if isinstance(img, str) else ''
+
+
 def _num(raw, cast=float):
     try:
         return cast(str(raw).replace(',', '').strip())
@@ -686,7 +699,7 @@ def parse_filmarks(html, url):
         'counts': text_tags(' '.join([title, synopsis] + texts)),
         'fetched_at': dt.date.today().isoformat(),
         'vod': [k for k, names in VOD_NAMES.items() if any(n in vod_text for n in names)],
-        'image': https_only(_meta(soup, 'og:image')), 'filmarks_url': url,
+        'image': https_only(_ld_image(ld)) or https_only(_meta(soup, 'og:image')), 'filmarks_url': url,
         'series': int(mm.group(1)) if mm else None, 'sources': ['filmarks'],
     }
 

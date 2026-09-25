@@ -129,8 +129,8 @@ export const CONFIG = {
     },
   ],
 
-  /* 共有の文面。{code} {name} が入る */
-  shareText: '私のアニメ診断タイプは【{code}：{name}型】でした！あなたにぴったりの神アニメは…？',
+  /* 共有の文面。{code} {name} {title} {match} が入る（{title}/{match} は運命の1作） */
+  shareText: '私のアニメ診断タイプは【{code}：{name}型】でした！運命の1作は「{title}」（{match}%適合）。あなたにぴったりの神アニメは…？',
   shareTags: ['アニメ診断', 'アニメ'],
 
   /* 作品の画像を出すか。img は Annict（公式サイトの OGP 画像）と Filmarks（og:image）から。

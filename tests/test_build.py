@@ -29,6 +29,10 @@ DETAIL = '''<html><head>
 <div class="p-mark"><div class="c-rating__score">2.0</div><div class="p-mark-review">絶望と復讐。救いがない</div></div>
 </body></html>'''
 
+DETAIL_WITH_LD_IMAGE = DETAIL.replace(
+    '"outline":"description"}}],"@type":"{kind}"',
+    '"outline":"description"}}],"image":{{"@type":"ImageObject","url":"https://img.example/poster/{n}.jpg"}},"@type":"{kind}"')
+
 
 class Resp:
     def __init__(self, text='', status=200, js=None):
@@ -116,6 +120,18 @@ class FilmarksTest(unittest.TestCase):
         self.assertGreater(works['進撃の巨人']['p'], 0.9, 'レビュー数 12 万 → 人気が高い')
         self.assertEqual(a['vod'], ['unext', 'dmmtv'])
         self.assertFalse(any('movies' in u for u in s.asked), '映画の sitemap にも頁にも行かない')
+        self.assertEqual(a['image'], 'https://img.example/10.jpg', 'JSON-LD に image が無ければ og:image に戻す')
+
+    def test_image_prefers_json_ld_over_og_image(self):
+        # og:image は SNS 用の 240x240 正方形サムネで、ポスターが正方形でない
+        # 作品は余白に Filmarks のロゴが入る。JSON-LD の image（元の比率）が
+        # あればロゴの入らないそちらを使う
+        html = DETAIL_WITH_LD_IMAGE.format(n=10, title='進撃の巨人', score='4.3', count='123456', year=2013,
+                                            kind='TVSeason', syn='壁の外の巨人と戦う。人類は壁の中で暮らしていた。',
+                                            studio='WIT STUDIO', minutes=24)
+        got = b.parse_filmarks(html, 'https://filmarks.com/animes/10/20')
+        self.assertEqual(got['image'], 'https://img.example/poster/10.jpg',
+                          'ロゴ入りの og:image ではなく、比率そのままの JSON-LD image を使う')
 
     def test_direct_even_with_token_when_not_blocked(self):
         s = FakeFilmarks()
