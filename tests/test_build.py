@@ -117,15 +117,30 @@ class FilmarksTest(unittest.TestCase):
         self.assertEqual(a['vod'], ['unext', 'dmmtv'])
         self.assertFalse(any('movies' in u for u in s.asked), '映画の sitemap にも頁にも行かない')
 
-    def test_scrapedo_wraps_every_request(self):
+    def test_direct_even_with_token_when_not_blocked(self):
         s = FakeFilmarks()
         self.crawl(s, token='TKN')
         self.assertTrue(s.asked)
-        for u in s.asked:
-            q = parse_qs(urlparse(u).query)
-            self.assertTrue(u.startswith('https://api.scrape.do/?'), u)
-            self.assertEqual(q['token'], ['TKN'])
-        self.assertIn('https://filmarks.com/robots.txt', [parse_qs(urlparse(u).query)['url'][0] for u in s.asked])
+        self.assertFalse(any('api.scrape.do' in u for u in s.asked), 'ブロックされていなければ直接取りに行く')
+
+    def test_falls_back_to_scrapedo_when_blocked(self):
+        class Blocked(FakeFilmarks):
+            def get(self, url, timeout=None):
+                if url.endswith('/animes/10/20'):  # scrape.do 経由なら endswith にならない
+                    self.asked.append(url)
+                    return Resp('', 403)
+                return super().get(url, timeout)
+        s = Blocked()
+        b_sleep = b.time.sleep
+        b.time.sleep = lambda x: None
+        try:
+            got = self.crawl(s, token='TKN')
+        finally:
+            b.time.sleep = b_sleep
+        self.assertEqual([g['title'] for g in got], ['進撃の巨人', 'まだ知らないアニメ'],
+                         '直接がブロックされても scrape.do に切り替えて取り切る')
+        self.assertTrue(any('api.scrape.do' in u for u in s.asked), '403 が続いたら scrape.do に切り替える')
+        self.assertEqual(sum(1 for u in s.asked if u.endswith('/animes/10/20')), 3, '3 回だけ直接を試す')
 
     def test_robots_disallow_stops(self):
         s = FakeFilmarks(robots='User-agent: *\nDisallow: /\n')

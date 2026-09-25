@@ -11,7 +11,7 @@
 
     # Filmarks にあるアニメを全部取る（何時間もかかる。途中で止めても続きから）
     python3 build_anime_db.py --filmarks
-    SCRAPEDO_TOKEN=xxxx python3 build_anime_db.py --filmarks   # scrape.do を通す
+    # SCRAPEDO_TOKEN があっても既定は直接取得。ブロックされた時だけ scrape.do に切り替える
 
     # Annict も足す（任意。作品とレビューの言葉が増える。公式 API なので速い）
     python3 build_anime_db.py --annict                       # 作品 → レビューの順に取る
@@ -37,10 +37,11 @@
 守っていること
   - Filmarks は robots.txt を先に読み、許されていない道には行かない。
     読めなければ取りに行かない。間隔は既定 1.5 秒（これより短くはできない）
-  - scrape.do を通しても、間隔と robots.txt はそのまま守る
+  - まず直接取りに行く。403 / 429 / 503 が続いた時だけ scrape.do に切り替える
     （scrape.do は「こちらの回線から届かない」時の運び役。行儀を崩すためのものではない）
+  - scrape.do を通しても、間隔と robots.txt はそのまま守る
   - 取ったページは .cache/ に残す。止めても、次は続きから
-  - 429 / 503 が続いたら、そこで止める
+  - 切り替えた後も 403 / 429 / 503 が続いたら、そこで止める
 
 Filmarks の利用規約で自動取得や再配布が禁じられていないか、回す前に確かめること。
 取ったあらすじや画像には権利がある。画面に何を出すかは README の「データの出し方」を参照。
@@ -258,7 +259,8 @@ class Fetcher:
         self.s = session
         self.s.headers.update({'User-Agent': self.UA, 'Accept-Language': 'ja,en;q=0.5'})
         self.sleep = max(float(sleep), self.MIN_SLEEP)
-        self.token = scrapedo_token
+        self.scrapedo_token = scrapedo_token  # ブロックされた時だけ使う（既定は直接）
+        self.token = None
         self.cache = Path(cache)
         self.last = 0.0
         self.robots = {}
@@ -306,9 +308,14 @@ class Fetcher:
             r = self.s.get(self._wire(url), timeout=60)
         finally:
             self.last = time.monotonic()
-        if r.status_code in (429, 503):
+        if r.status_code in (403, 429, 503):
             self.fails += 1
             if self.fails >= 3:
+                if self.scrapedo_token and not self.token:
+                    log(f'{r.status_code} が続いた。ここから scrape.do に切り替える')
+                    self.token = self.scrapedo_token
+                    self.fails = 0
+                    return self._get(url, read, write)
                 raise RuntimeError(f'{r.status_code} が続いた。ここで止める')
             time.sleep(30 * self.fails)
             return self._get(url, read, write)
@@ -1105,7 +1112,8 @@ def main(argv=None):
     store = load_store(FILMARKS_STORE)
     if args.filmarks:
         tok = os.environ.get('SCRAPEDO_TOKEN')
-        log('Filmarks: ' + ('scrape.do を通す' if tok else '直接取りに行く') + f'。取ってある {len(store)} 作は飛ばす')
+        log('Filmarks: 直接取りに行く' + ('（ブロックされたら scrape.do に切り替える）' if tok else '（scrape.do トークンなし）')
+            + f'。取ってある {len(store)} 作は飛ばす')
         extra = [u for u, r in store.items()
                  if args.refresh_all or (args.refresh_since and (r.get('year') or 0) >= args.refresh_since)]
         try:

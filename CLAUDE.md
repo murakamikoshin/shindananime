@@ -6,6 +6,7 @@
 ## 決まりごと
 
 - Filmarks: robots.txt を守る。間隔は 1.5 秒より縮めない（`Fetcher.MIN_SLEEP`）。scrape.do 経由でも同じ
+- Filmarks の取得はまず直接。403/429/503 が続いた時だけ scrape.do に自動で切り替わる（クレジットを無駄に使わないため。`.env` に `SCRAPEDO_TOKEN` があっても既定はこれ）
 - トークンは環境変数（`.env`）だけ。コードやコミットに書かない
 - レビュー本文そのものは保存しない（`counts` に言葉の数だけ残す）。Filmarks も Annict も同じ
 - 手元の名作一覧（data/default_titles.tsv）にスコアをでっち上げない
@@ -27,11 +28,14 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - アプリ本体（src/）: 基本 20 問＋追加 18 問、6 軸のタイプコード、運命の1作＋次点2作。検査は `npm run check` で全部通る
 - Annict: 作品一覧 15,971 作を `data/annict_works.jsonl` に取った（まだ push していない）
 - Filmarks: `--probe https://filmarks.com/animes/3844/5200` で全項目が読めることを確かめた（★4.3・レビュー数・年・あらすじ・制作会社・再生時間・配信）
+- 1. Annict のレビュー取得 … 完了（4,213 作に手がかりあり。`data/annict_reviews.jsonl`）
+- 2. Filmarks 30 作の中身確認 … 完了（★・レビュー数・年・あらすじ・制作会社・配信は良好。`minutes` の欠けは個別ページの実際の欠落で SEL の不具合ではない）
+- Fetcher を「まず直接、403/429/503 が続いたら scrape.do に切り替え」の作りに変更（前は `SCRAPEDO_TOKEN` があると全部 scrape.do 経由だった。クレジットの節約のため）。`tests/test_build.py` も合わせて直し、`npm run check` の Python 側は通った
+
+いま進めていること
+3. `caffeinate -i python3 build_anime_db.py --filmarks` を実行中（バックグラウンド。直接取得、ブロックされたら自動で scrape.do）。1 万ページ弱で約 3 時間。止まっても同じコマンドで続きから
 
 次にやること（この順で）
-1. `python3 build_anime_db.py --annict-reviews-only` … Annict のレビューと制作会社を取る（未実行。問い合わせの形が合っているかは本物で未確認）
-2. `python3 build_anime_db.py --filmarks --limit 30` … 30 作だけ取って、`data/filmarks_works.jsonl` の中身を確かめる
-3. `caffeinate -i python3 build_anime_db.py --filmarks` … 全部（1 万ページで約 4 時間。止まっても同じコマンドで続きから）
 4. 最後の行の「手がかり不足で落とした N」を見る。多すぎたら TAG_WORDS や --min-info を見直す
 5. `npm run check` → `git add data/ all_anime_db.json` → commit → push
 6. 公開（README の「5. 出す」と koshin-studio の README の順番: アプリ → 中継 worker → サイト）
