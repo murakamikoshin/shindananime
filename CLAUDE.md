@@ -20,3 +20,27 @@
     npm run serve                                             # http://localhost:4600/app/shindananime/
 
 Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し、tests/test_build.py の作り物の HTML も合わせる。
+
+## いまの状況（2026-09-25 時点。終わったら書き換える）
+
+終わったこと
+- アプリ本体（src/）: 基本 20 問＋追加 18 問、6 軸のタイプコード、運命の1作＋次点2作。検査は `npm run check` で全部通る
+- Annict: 作品一覧 15,971 作を `data/annict_works.jsonl` に取った（まだ push していない）
+- Filmarks: `--probe https://filmarks.com/animes/3844/5200` で全項目が読めることを確かめた（★4.3・レビュー数・年・あらすじ・制作会社・再生時間・配信）
+
+次にやること（この順で）
+1. `python3 build_anime_db.py --annict-reviews-only` … Annict のレビューと制作会社を取る（未実行。問い合わせの形が合っているかは本物で未確認）
+2. `python3 build_anime_db.py --filmarks --limit 30` … 30 作だけ取って、`data/filmarks_works.jsonl` の中身を確かめる
+3. `caffeinate -i python3 build_anime_db.py --filmarks` … 全部（1 万ページで約 4 時間。止まっても同じコマンドで続きから）
+4. 最後の行の「手がかり不足で落とした N」を見る。多すぎたら TAG_WORDS や --min-info を見直す
+5. `npm run check` → `git add data/ all_anime_db.json` → commit → push
+6. 公開（README の「5. 出す」と koshin-studio の README の順番: アプリ → 中継 worker → サイト）
+
+決まっていないこと（持ち主に聞く）
+- `data/visual_studios.tsv` に足す会社（例: マッドハウス）
+- `src/config.js` のアフィリエイトリンク・AdSense（解析中の枠は AdSense の方針に触れる恐れあり）
+- Filmarks の利用規約の確認
+
+気をつけること
+- `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束
+- Python は Mac 標準の 3.9。ターミナルを開いたら `source .venv/bin/activate` を先に
