@@ -943,6 +943,34 @@ def check_env(session=None):
     return ok
 
 
+def probe_debug(html):
+    """SEL を直すための手がかりを出す。ページの本文は出しすぎない（各 80 字まで）"""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    print('\n==== JSON-LD ====')
+    for sc in soup.find_all('script', type='application/ld+json'):
+        print((sc.string or '').strip()[:1500])
+    print('\n==== meta ====')
+    for prop in ('og:title', 'og:description', 'description'):
+        print(f'{prop}: {_meta(soup, prop)[:120]}')
+    print('\n==== class に目印がある要素（class / 文字の頭 80 字）====')
+    marks = ('synopsis', 'outline', 'story', 'score', 'rating', 'rate', 'star', 'mark', 'review', 'count',
+             'other-info', 'info', 'date', 'year', 'release', 'season', 'vod', 'title')
+    seen, n = set(), 0
+    for el in soup.find_all(class_=True):
+        cls = ' '.join(el.get('class'))
+        if not any(m in cls.lower() for m in marks) or cls in seen:
+            continue
+        seen.add(cls)
+        text = re.sub(r'\s+', ' ', el.get_text(' ', strip=True))[:80]
+        if text:
+            print(f'{el.name}.{cls.replace(" ", ".")}  |  {text}')
+            n += 1
+        if n >= 120:
+            print('…（多いので 120 件で切った）')
+            break
+
+
 def find_filmarks_url(f, title):
     """Filmarks で作品名を検索して、最初に出てきたアニメ作品ページの URL を返す"""
     search = f'{FM}/search/animes?q={quote(title)}'
@@ -982,6 +1010,8 @@ def main(argv=None):
     ap.add_argument('--probe', metavar='URL か 作品名',
                     help='Filmarks の作品ページ 1 枚だけ取って、読めた中身を見せる（何も書かない）。'
                          '作品名を渡すと、Filmarks で検索して最初に出た作品を見る')
+    ap.add_argument('--probe-debug', action='store_true',
+                    help='--probe と一緒に。スコア・あらすじ・年・レビューらしい所の class と文字を並べる（SEL を直す手がかり）')
     ap.add_argument('--check-env', action='store_true', help='トークンが入っているか確かめる（値は出さない）')
     args = ap.parse_args(argv)
 
@@ -1003,6 +1033,8 @@ def main(argv=None):
         item = parse_filmarks(text, url) if status == 200 else None
         print(json.dumps({'status': status, 'parsed': item, 'sitemaps': f.sitemaps(FM)},
                          ensure_ascii=False, indent=1))
+        if args.probe_debug and status == 200:
+            probe_debug(text)
         missing = [k for k in ('title', 'score', 'reviews', 'synopsis', 'year') if not (item or {}).get(k)]
         log('読めなかった項目: ' + (', '.join(missing) if missing else 'なし') +
             ('  → SEL を直す' if missing else ''))
