@@ -1,51 +1,65 @@
-/* 収益まわりの設定。ここだけ書き換えれば、画面の側は触らなくていい。
-   何も埋めなければ、広告は一切読み込まず、配信サービスへはただの検索リンクになる。 */
+/* 収益まわりの設定。ここだけ書き換えれば、画面の側は触らなくていい。 */
 export const CONFIG = {
-  /* 共有するときの URL と、紹介ページ */
   appUrl: 'https://koshinstudio.com/app/shindananime/',
   aboutUrl: 'https://koshinstudio.com/works/shindananime/',
   privacyUrl: 'https://koshinstudio.com/privacy/',
 
-  /* 解析中の画面を出す長さ（ミリ秒）。動きを嫌う設定の人には短くする */
-  loadingMs: 3200,
+  /* 読み込むデータ。build_anime_db.py が書き出したもの */
+  dbUrl: './all_anime_db.json',
 
-  /* Google AdSense。審査に通ったら enabled を true にして client と slot を埋める。
-     結果画面の「スポンサーリンク」枠にだけ出す。
-     読み込み中の画面には出さない（中身の無い画面に広告を置くのは AdSense の方針違反）。
-     ads.txt は koshinstudio.com の直下に置くこと（このアプリの Pages ではない） */
+  /* 解析中の画面の長さ（ミリ秒）。動きを嫌う設定の人には短くする */
+  loadingMs: 4000,
+
+  /* 広告（Google AdSense など）。
+     enabled が false の間は、枠線と「スポンサーリンク」だけのダミー枠を出す
+     （showPlaceholder を false にすると、ダミー枠も消える）。
+     slots.top     … 結果画面のいちばん上
+     slots.loading … 解析中の画面のまん中
+     ※ 解析中の画面は中身が少なく、自動で移る画面なので、AdSense の
+       「コンテンツの無い画面への広告」に当たる恐れがある。審査前に
+       AdSense の方針を確かめ、心配なら loading は自前の PR 枠（loadingPr）にする。
+     ads.txt は koshinstudio.com の直下に置く（このアプリの Pages ではない） */
   ads: {
     enabled: false,
-    client: '',            // 'ca-pub-0000000000000000'
-    slots: { result: '' }, // 結果画面の枠の data-ad-slot
+    client: '',                        // 'ca-pub-0000000000000000'
+    slots: { top: '', loading: '' },   // data-ad-slot
+    showPlaceholder: true,
   },
 
-  /* 配信サービス。search は作品名で探す先（{q} に作品名が入る）。
-     affiliate を書くと、そちらを使い、リンクに PR と rel="sponsored" が付く。
-       {q}   … 作品名（URL エンコード済み）
-       {url} … search を組み立てた URL（URL エンコード済み）。ASP の「飛び先 URL」用
-     例（A8.net）   'https://px.a8.net/svt/ejp?a8mat=XXXXX&a8ejpredirect={url}'
-     例（Amazon）   'https://www.amazon.co.jp/s?k={q}&i=instant-video&tag=XXXXX-22'
-     検索 URL の形は各サービスの都合で変わる。出す前に一度ずつ踏んで確かめること */
-  vod: [
-    { id: 'unext', name: 'U-NEXT', search: 'https://video.unext.jp/freeword?query={q}', affiliate: '' },
-    { id: 'danime', name: 'dアニメストア', search: 'https://animestore.docomo.ne.jp/animestore/sch_pc?searchKey={q}', affiliate: '' },
-    { id: 'prime', name: 'Prime Video', search: 'https://www.amazon.co.jp/s?k={q}&i=instant-video', affiliate: '' },
-    { id: 'abema', name: 'ABEMA', search: 'https://abema.tv/search?q={q}', affiliate: '' },
-    { id: 'netflix', name: 'Netflix', search: 'https://www.netflix.com/search?q={q}', affiliate: '' },
-  ],
-
-  /* 解析中の画面に出す自前の PR 枠（アフィリエイト）。他社の広告網は使わない。
-     enabled にすると、診断の画面と並べて小さく出す。文言は提携先の規約に合わせて書く。
-     「無料」「○日間」などの条件は変わるので、確かめたものだけを書くこと */
+  /* 解析中の画面の自前 PR 枠。enabled にすると、広告枠の代わりにこれを出す */
   loadingPr: {
     enabled: false,
-    label: 'PR',
-    title: '',   // 例: 'アニメを見るなら U-NEXT'
-    text: '',    // 例: '見放題作品が多い動画配信サービス'
+    title: '',   // 例: 'アニメを見るなら DMM TV'
+    text: '',
     url: '',     // ASP の広告リンク
   },
 
-  /* 画像を出すか。Filmarks の画像は作品の権利者のもの。
-     使ってよいと確かめるまでは false のまま（色の札で代わりに出す） */
+  /* 作品カードの配信ボタン。url にアフィリエイトリンクを入れる。
+     url の中の {q} は作品名（URL エンコード済み）、{url} は search を組み立てた URL（同）。
+     url が空の間は search（各サービスの検索ページ）へのただのリンクになる。
+     url を入れたボタンには PR の札と rel="sponsored" が付く（外さないこと）。
+     「31日間無料」などの条件はサービス側で変わる。出す前に提携先の最新の条件と合わせること */
+  vod: [
+    {
+      id: 'dmmtv',
+      label: 'DMM TVで無料体験視聴する ➔',
+      url: '',   // 例: 'https://px.a8.net/svt/ejp?a8mat=XXXXX&a8ejpredirect={url}'
+      search: 'https://tv.dmm.com/vod/search/?keyword={q}',
+      className: 'bg-[#ff2d55] hover:bg-[#ff4d6d]',
+    },
+    {
+      id: 'unext',
+      label: 'U-NEXTで31日間無料体験 ➔',
+      url: '',
+      search: 'https://video.unext.jp/freeword?query={q}',
+      className: 'bg-[#1b1b1b] ring-1 ring-white/30 hover:bg-[#2a2a2a]',
+    },
+  ],
+
+  /* 共有の文面。{code} {name} が入る */
+  shareText: '私のアニメ診断タイプは【{code}：{name}型】でした！あなたにぴったりの神アニメは…？',
+  shareTags: ['アニメ診断', 'アニメ'],
+
+  /* 作品の画像を出すか。画像は作品の権利者のもの。使ってよいと確かめるまでは false */
   showImages: false,
 };

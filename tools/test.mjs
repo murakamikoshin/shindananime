@@ -1,68 +1,103 @@
 /* 診断の計算を確かめる。画面は開かない。
-       npm test */
+       node tools/test.mjs */
 import { readFileSync } from 'node:fs';
 import { questions } from '../src/questions.js';
-import { AXES, profile, typeCode, typeName, pick, reasons } from '../src/logic.js';
+import { AXES, profile, typeCode, nickname, pick, reasons, exclusion, usable, cosine, franchise, sameFranchise } from '../src/logic.js';
 
-const data = JSON.parse(readFileSync(new URL('../anime_data.json', import.meta.url), 'utf8'));
+const db = JSON.parse(readFileSync(new URL('../all_anime_db.json', import.meta.url), 'utf8'));
+const works = usable(db.works);
 let bad = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('× ' + msg); bad = 1; } };
 
 /* 形 */
 ok(questions.length === 18, `質問は 18 問（いま ${questions.length}）`);
 for (const a of AXES) ok(questions.filter((q) => q.axis === a.key).length === 3, `${a.label} は 3 問`);
-ok(questions.every((q) => !/\[[A-Z]\]|^\d+\./.test(q.q + q.a + q.b)), '文言に番号や [R] が残っていない');
-ok(data.anime.length >= 50, `作品は 50 以上（いま ${data.anime.length}）`);
-for (const a of data.anime) {
-  for (const x of AXES) ok(typeof a.axes[x.key] === 'number' && Math.abs(a.axes[x.key]) <= 1, `${a.title} の ${x.key}`);
-  ok(a.filmarks_url.startsWith('https://filmarks.com/'), `${a.title} の Filmarks URL`);
+ok(questions.every((q) => !/\[[A-Z]+\]|^質問|^\d+\./.test(q.q + q.a + q.b)), '文言に番号や [R] が残っていない');
+ok(works.length >= 500, `使える作品は 500 以上（いま ${works.length}）`);
+ok(db.works.every((w) => w.v.length === 6 && w.v.every((x) => Math.abs(x) <= 1)), 'どの作品も 6 軸');
+ok(new Set(db.works.map((w) => w.id)).size === db.works.length, 'id が重ならない');
+
+/* タイプコード */
+const all = (v) => profile(questions, questions.map(() => v));
+ok(typeCode(all(1)) === 'RDCP-VM', '全部 A → RDCP-VM');
+ok(typeCode(all(-1)) === 'FHSA-STL', '全部 B → FHSA-STL');
+ok(nickname(all(1)) === '深淵を覗く考察コレクター', 'RDCP-VM の二つ名');
+ok(nickname(all(-1)) === '脳汁全開の爽快エンタメハンター', 'FHSA-STL の二つ名');
+const per = (o) => questions.map((q) => o[q.axis] ?? 0);
+const u = (o) => profile(questions, per(o));
+ok(nickname(u({ world: -1, mood: 1, structure: 1, taste: -1, visual: 1, watch: 1 })) === '異世界を旅するロマン追及者', 'FDCA-VM');
+ok(nickname(u({ world: 1, mood: -1, structure: -1, taste: 1, visual: -1, watch: -1 })) === '現実逃避のライトファン', 'RHSP-STL');
+
+/* 64 通りすべてに、別々の二つ名が付く */
+const names = new Set();
+for (let m = 0; m < 64; m++) {
+  const v = AXES.map((_, i) => ((m >> i) & 1 ? 1 : -1));
+  names.add(nickname(v));
+  ok(/^[RF][DH][CS][PA]-(V|ST)[ML]$/.test(typeCode(v)), 'コードの形 ' + typeCode(v));
 }
-ok(new Set(data.anime.map((a) => a.id)).size === data.anime.length, 'id が重ならない');
+ok(names.size === 64, `二つ名は 64 通り別々（いま ${names.size}）`);
 
-/* 回答を作る: 軸ごとに +1 / -1 / 0 などを指定 */
-const answer = (per) => questions.map((q) => per[q.axis] ?? 0);
-const top = (per) => pick(profile(questions, answer(per)), data.anime, 3).map((c) => c.anime.title);
+/* 同じシリーズ */
+const same = (a, b) => sameFranchise(franchise({ t: a }), franchise({ t: b }));
+ok(same('呪術廻戦', '呪術廻戦 渋谷事変'), '呪術廻戦 と 渋谷事変');
+ok(same('鬼滅の刃', '劇場版「鬼滅の刃」無限列車編'), '鬼滅 と 劇場版');
+ok(same('進撃の巨人', '進撃の巨人 The Final Season'), '進撃 と Final');
+ok(!same('ONE PIECE', 'ONE PUNCH MAN'), 'ONE PIECE と ONE PUNCH MAN は別');
+ok(!same('Another', 'Angel Beats!'), '頭が違えば別');
 
-const allA = profile(questions, questions.map(() => 1));
-ok(typeCode(allA) === 'RDCGPV', '全部 A なら RDCGPV');
-ok(typeCode(profile(questions, questions.map(() => -1))) === 'FHSIAL', '全部 B なら FHSIAL');
-ok(typeName(allA).badge.includes('群像派'), '札に人間関係が入る');
+/* 近さ */
+ok(Math.abs(cosine([1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0]) - 1) < 1e-9, 'cos 同じ向き = 1');
+ok(Math.abs(cosine([1, 0, 0, 0, 0, 0], [-1, 0, 0, 0, 0, 0]) + 1) < 1e-9, 'cos 逆向き = -1');
+ok(cosine([0, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]) === 0, 'どちらでもない人は 0');
 
-/* 同じ「ダーク」でも、頭脳戦派と熱量派で違う作品になる */
-const darkMind = top({ mood: 1, taste: 1, structure: 1, bond: -1 });
-const darkAction = top({ mood: 1, taste: -1, structure: -1 });
-console.log('ダーク×頭脳戦 :', darkMind.join(' / '));
-console.log('ダーク×熱量   :', darkAction.join(' / '));
-ok(darkMind.filter((t) => darkAction.includes(t)).length <= 1, 'ダーク系の中でも分かれる');
-ok(darkMind.some((t) => /DEATH NOTE|カイジ|推しの子|僕だけ|化物語/.test(t)), 'ダーク×頭脳戦 に頭脳戦ものが入る');
+const top = (o) => pick(u(o), works, 3).map((c) => `${c.work.t}(${c.match}%)`);
+const dm = top({ mood: 1, taste: 1, structure: 1, world: 1 });
+const da = top({ mood: 1, taste: -1, structure: -1, visual: 1 });
+const hl = top({ world: 1, mood: -1, structure: -1, watch: -1, visual: -1 });
+console.log('ダーク×心理戦  :', dm.join(' / '));
+console.log('ダーク×アクション:', da.join(' / '));
+console.log('日常×ゆるく    :', hl.join(' / '));
+ok(dm.filter((t) => da.includes(t)).length === 0, 'ダークの中でも心理戦派とアクション派で分かれる');
+for (const list of [dm, da, hl]) {
+  const f = list.map((t) => franchise({ t: t.replace(/\(\d+%\)$/, '') }));
+  ok(!f.some((x, i) => f.some((y, j) => i < j && sameFranchise(x, y))), '同じシリーズが並ばない: ' + list.join(' / '));
+}
 
-const happyGroup = top({ world: 1, mood: -1, bond: 1, structure: -1, watch: -1 });
-console.log('日常×ハッピー×群像:', happyGroup.join(' / '));
-ok(happyGroup.some((t) => /けいおん|ゆるキャン|ぼっち|ハイキュー|宇宙より|SHIROBAKO|SPY/.test(t)), '日常×ハッピー×群像');
+const three = pick(u({ world: -1, mood: 1 }), works, 3);
+ok(three.length === 3 && new Set(three.map((c) => c.work.id)).size === 3, '3 作は別々');
+ok(three[0].match >= three[1].match - 5, '1 作目がいちばん合う（人気の上乗せでわずかに前後してもよい）');
+ok(three.every((c) => reasons(u({ world: -1, mood: 1 }), c.work).length > 0), '理由が付く');
 
-const visual = top({ world: -1, taste: 1, watch: 1, mood: -0.5 });
-console.log('異世界×映像没入   :', visual.join(' / '));
+const ex = exclusion(u({ mood: 1, taste: 1 }), works);
+ok(ex.names.join('×') === 'ダーク×心理戦', '除外に使う 2 軸: ' + ex.names.join('×'));
+ok(ex.excluded > 0 && ex.excluded < works.length, `除外数は本当に数えた数（${ex.excluded}）`);
 
-/* 3 作は別々で、理由が付く */
-const u = profile(questions, answer({ world: -1, mood: 1 }));
-const three = pick(u, data.anime, 3);
-ok(new Set(three.map((c) => c.anime.id)).size === 3, '3 作は重ならない');
-ok(three.every((c) => reasons(u, c.anime).length > 0), '3 作とも理由が付く');
-
-/* 乱数の回答で、どれだけの作品に出番があるか（偏りすぎていないか） */
-let seed = 7;
+/* 乱数の回答で、出番の偏り */
+let seed = 11;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const vals = [-1, -0.5, 0, 0.5, 1];
 const hits = new Map();
-for (let k = 0; k < 4000; k++) {
-  const u2 = profile(questions, questions.map(() => vals[Math.floor(rnd() * 5)]));
-  for (const c of pick(u2, data.anime, 3)) hits.set(c.anime.title, (hits.get(c.anime.title) || 0) + 1);
+const N = 3000;
+for (let k = 0; k < N; k++) {
+  const uu = profile(questions, questions.map(() => vals[Math.floor(rnd() * 5)]));
+  const c = pick(uu, works, 1)[0];
+  hits.set(c.work.t, (hits.get(c.work.t) || 0) + 1);
 }
-const reach = hits.size / data.anime.length;
-const most = [...hits].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, n]) => `${t} ${(n / 120).toFixed(1)}%`);
-console.log(`出番のある作品 ${hits.size}/${data.anime.length}  よく出る: ${most.join(', ')}`);
-ok(reach >= 0.8, '8 割以上の作品に出番がある');
-ok([...hits.values()].every((n) => n / 12000 < 0.2), 'ひとつの作品が 2 割を超えて出ない');
+const most = [...hits].sort((a, b) => b[1] - a[1]);
+console.log(`運命の1作に選ばれた作品 ${hits.size} 種 / よく出る: ${most.slice(0, 3).map(([t, n]) => `${t} ${(100 * n / N).toFixed(1)}%`).join(', ')}`);
+ok(hits.size >= 120, '運命の1作が偏りすぎない（120 種以上）');
+ok(most[0][1] / N < 0.05, 'ひとつの作品が 5% を超えて選ばれない');
+
+/* 1 万件でも速いか（作り物のデータで） */
+const big = Array.from({ length: 12000 }, (_, i) => ({
+  id: i, t: 'w' + i, p: rnd(), s: 3 + rnd() * 1.5, i: 1, v: AXES.map(() => rnd() * 2 - 1),
+}));
+const t0 = performance.now();
+pick(u({ mood: 1, taste: 1 }), big, 3);
+exclusion(u({ mood: 1, taste: 1 }), big);
+const ms = performance.now() - t0;
+console.log(`12,000 作で選ぶのにかかった時間: ${ms.toFixed(1)} ms`);
+ok(ms < 200, '1 万件超でもすぐ出る');
 
 console.log(bad ? '\n合わないところがあります' : '\n計算はすべて狙いどおり。');
 process.exit(bad);

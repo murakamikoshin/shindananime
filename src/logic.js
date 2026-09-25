@@ -1,16 +1,17 @@
 /* 診断の計算。画面には触らない（node からも読んで検査する）。
 
-   6 軸。値は -1〜+1。+ が R/D/C/G/P/V、- が F/H/S/I/A/L。
-   回答は 1 問ごとに -1〜+1 で持つ（+1 = a を強く、+0.5 = どちらかといえば a、
-   0 = どちらでもない、-0.5 / -1 = b 側）。 */
+   6 軸。値は -1〜+1。+ が R/D/C/P/V/M、- が F/H/S/A/ST/L。
+   回答は 1 問ごとに -1〜+1 で持つ（+1 = A を強く、+0.5 = どちらかといえば A、
+   0 = どちらでもない、-0.5 / -1 = B 側）。
+   作品の軸は all_anime_db.json の v（同じ並び）。 */
 
 export const AXES = [
   { key: 'world', label: '世界観', pos: 'R', neg: 'F', posName: 'リアル', negName: 'ファンタジー' },
   { key: 'mood', label: '後味・刺激', pos: 'D', neg: 'H', posName: 'ダーク', negName: 'ハッピー' },
-  { key: 'structure', label: '構成・テンポ', pos: 'C', neg: 'S', posName: '考察・重厚', negName: 'テンポ・直感' },
-  { key: 'bond', label: '人間関係', pos: 'G', neg: 'I', posName: '群像・絆', negName: '孤高・推し' },
-  { key: 'taste', label: 'サブテイスト', pos: 'P', neg: 'A', posName: '心理戦・ドラマ', negName: 'アクション・熱量' },
-  { key: 'watch', label: '視聴・演出', pos: 'V', neg: 'L', posName: '映像美・じっくり', negName: '気軽・一気見' },
+  { key: 'structure', label: '構成・テンポ', pos: 'C', neg: 'S', posName: '伏線・考察', negName: 'テンポ・勢い' },
+  { key: 'taste', label: 'サブテイスト', pos: 'P', neg: 'A', posName: '心理戦', negName: 'アクション' },
+  { key: 'visual', label: '視覚・フェチ', pos: 'V', neg: 'ST', posName: '映像美', negName: 'ストーリー' },
+  { key: 'watch', label: '視聴スタイル', pos: 'M', neg: 'L', posName: '熟読・考察', negName: 'サクッと' },
 ];
 
 /* 軸ごとに回答をならす。答えていない問題は数えない */
@@ -22,123 +23,146 @@ export function profile(questions, answers) {
     sum[q.axis] = (sum[q.axis] || 0) + v;
     n[q.axis] = (n[q.axis] || 0) + 1;
   });
-  const out = {};
-  for (const a of AXES) out[a.key] = n[a.key] ? clamp(sum[a.key] / n[a.key]) : 0;
-  return out;
+  return AXES.map((a) => (n[a.key] ? clamp(sum[a.key] / n[a.key]) : 0));
 }
 
+/* 勝った側の文字。ちょうど 0 なら + 側 */
+export const letters = (u) => AXES.map((a, i) => (u[i] >= 0 ? a.pos : a.neg));
+
+/* RDCP-VM の形。前の 4 軸と、後ろの 2 軸をハイフンで分ける */
 export function typeCode(u) {
-  return AXES.map((a) => (u[a.key] >= 0 ? a.pos : a.neg)).join('');
+  const l = letters(u);
+  return l.slice(0, 4).join('') + '-' + l.slice(4).join('');
 }
 
-/* 名前は部品から組む: 世界観×後味 / 構成×テイスト。札は 人間関係 × 視聴 */
-const WORLD_MOOD = {
-  RD: '現実の闇をのぞき込む', RH: '日常に光を見つける',
-  FD: '異界の絶望に魅せられた', FH: '別世界の冒険に焦がれる',
+/* 二つ名。決め打ちの 4 つ以外は、3 つの部品を組み合わせて 64 通り作る */
+const FIXED = {
+  'RDCP-VM': '深淵を覗く考察コレクター',
+  'FHSA-STL': '脳汁全開の爽快エンタメハンター',
+  'FDCA-VM': '異世界を旅するロマン追及者',
+  'RHSP-STL': '現実逃避のライトファン',
 };
-const STRUCT_TASTE = {
-  CP: '考察の策士', CA: '伏線を追う戦士',
-  SP: '直感のドラマ通', SA: '熱量の爆走者',
-};
-const BOND = { G: '群像派', I: '推し一点派' };
-const WATCH = { V: 'じっくり没入', L: 'サクッと一気見' };
+const PART_WORLD_MOOD = { RD: '深淵を覗く', RH: '日常を愛する', FD: '絶望の異界を征く', FH: '異世界を駆ける' };
+const PART_STRUCT_TASTE = { CP: '考察', CA: '伏線バトル', SP: '直感ドラマ', SA: '爽快エンタメ' };
+const PART_VISUAL_WATCH = { VM: 'コレクター', VL: 'ハンター', STM: 'アナリスト', STL: 'ランナー' };
 
-export function typeName(u) {
-  const c = typeCode(u);
-  return {
-    code: c,
-    name: WORLD_MOOD[c[0] + c[1]] + STRUCT_TASTE[c[2] + c[4]],
-    badge: BOND[c[3]] + ' × ' + WATCH[c[5]],
-  };
+export function nickname(u) {
+  const code = typeCode(u);
+  if (FIXED[code]) return FIXED[code];
+  const l = letters(u);
+  return PART_WORLD_MOOD[l[0] + l[1]] + PART_STRUCT_TASTE[l[2] + l[3]] + PART_VISUAL_WATCH[l[4] + l[5]];
 }
 
-/* 軸ごとの一言。刺さる理由と、タイプの説明に使う */
+/* 軸ごとの一言。タイプの説明と、刺さる理由に使う */
+const DESC = {
+  R: '地に足のついた人間ドラマに心が動く', F: '現実を忘れられる別世界ほど燃える',
+  D: '救いのない展開ほど記憶に残る', H: '逆転と大団円で満たされたい',
+  C: '伏線を拾って考察するのが楽しい', S: '勢いとテンポで一気に持っていかれたい',
+  P: '読み合いと行間のドラマが好き', A: '作画解放と迫力のバトルが好き',
+  V: '映像と演出のセンスでハマる', ST: '脚本とストーリーの面白さで選ぶ',
+  M: '一話ずつ噛み締めて、考察まで読み漁る', L: '面白ければ一気見して、次の作品へ',
+};
 const WHY = {
   R: '現実と地続きの手触り', F: '現実を忘れられる世界観',
   D: '容赦のない展開と重い余韻', H: '最後に報われるカタルシス',
   C: '伏線と考察しがいのある構成', S: '一話目から掴んでくるテンポ',
-  G: 'チームや仲間の絆', I: '濃い推しキャラと特別な関係',
   P: '読み合いと行間のドラマ', A: '熱量と迫力のある見せ場',
-  V: '何度も見返したくなる映像と余白', L: '一気見できる軽やかさ',
-};
-const DESC = {
-  R: '地に足のついた人間ドラマに心が動く', F: '非日常の世界に飛び込むほど燃える',
-  D: '救いのない展開ほど記憶に残る', H: '逆転と大団円で満たされたい',
-  C: '一話ずつ伏線を拾って考えるのが楽しい', S: '勢いと気持ちよさで一気見したい',
-  G: '群像劇と掛け合いに惹かれる', I: 'ひとりの推しに深く刺さる',
-  P: '静かな心理戦と大人のドラマが好き', A: '熱く、はっきりしたエンタメが好き',
-  V: '映像を噛み締めて、見終わった後も考察を読み漁る', L: '面白ければ一気に完走して、次の作品へ',
+  V: '何度も見返したくなる映像と演出', ST: '先が気になる脚本の強さ',
+  M: 'じっくり向き合うほど味が出る深さ', L: '気軽に一気見できる軽やかさ',
 };
 
 export function describe(u) {
-  /* はっきりしている軸から順に */
-  return [...AXES]
-    .sort((x, y) => Math.abs(u[y.key]) - Math.abs(u[x.key]))
-    .filter((a) => Math.abs(u[a.key]) >= 0.25)
+  return AXES.map((a, i) => ({ i, w: Math.abs(u[i]) }))
+    .sort((x, y) => y.w - x.w)
+    .filter((x) => x.w >= 0.25)
     .slice(0, 3)
-    .map((a) => DESC[u[a.key] >= 0 ? a.pos : a.neg]);
+    .map(({ i }) => DESC[u[i] >= 0 ? AXES[i].pos : AXES[i].neg]);
 }
 
-/* 迷わず答えた軸ほど重く見る。どちらでもない軸も少しは効かせる */
-const weight = (x) => 0.35 + Math.abs(x);
+export function cosine(u, v) {
+  let d = 0, a = 0, b = 0;
+  for (let i = 0; i < u.length; i++) { d += u[i] * v[i]; a += u[i] * u[i]; b += v[i] * v[i]; }
+  return a && b ? d / Math.sqrt(a * b) : 0;
+}
 
-export function similarity(u, v) {
-  let s = 0, w = 0;
-  for (const a of AXES) {
-    const wi = weight(u[a.key]);
-    s += wi * (1 - Math.abs(u[a.key] - (v[a.key] || 0)) / 2);
-    w += wi;
+/* 1 作品の点。似ている度合いが主で、人気と★は少しだけ */
+function quality(w) {
+  const s = typeof w.s === 'number' ? clamp((w.s - 3.2) / 1.3, 0, 1) : 0.4;
+  return 0.12 * (w.p || 0) + 0.06 * s;
+}
+
+/* 診断に使える作品だけ（軸の手がかりが少なすぎるものは外す） */
+export const usable = (works) => works.filter((w) => (w.i ?? 1) >= 0.25 && w.v.some((x) => Math.abs(x) > 0.15));
+
+export function rank(u, works, exclude = new Set()) {
+  const out = [];
+  for (const w of works) {
+    if (exclude.has(w.id)) continue;
+    const c = cosine(u, w.v);
+    out.push({ work: w, cos: c, total: 0.82 * c + quality(w), match: matchPct(c) });
   }
-  return s / w;
+  return out.sort((x, y) => y.total - x.total);
 }
 
-/* 作品どうしの近さ。3 作が似たものばかりにならないように使う */
-function closeness(x, y) {
-  let d = 0;
-  for (const a of AXES) d += Math.abs((x[a.key] || 0) - (y[a.key] || 0)) / 2;
-  return 1 - d / AXES.length;
+/* 表示用の適合度。cos 1 → 100%、0 → 50% */
+export const matchPct = (c) => Math.max(0, Math.min(100, Math.round(50 + 50 * c)));
+
+/* シリーズ違い（1期と2期、劇場版など）を同じ作品とみなすための札。
+   Filmarks のシリーズ id があればそれ。無ければタイトルの頭（最初の区切りまで） */
+export function franchise(w) {
+  if (w.se) return 'se' + w.se;
+  let t = w.t.normalize('NFKC').replace(/^(劇場版|映画|新劇場版|劇場総集編)\s*/, '');
+  const quoted = t.match(/^[「『](.+?)[」』]/);
+  if (quoted) t = quoted[1];
+  /* 英字のタイトルは頭の 1 語だと短すぎる（ONE PIECE と ONE PUNCH MAN）ので 2 語まで */
+  const words = t.split(/[\s　]+/);
+  t = /^[\x20-\x7e]+$/.test(words[0]) ? words.slice(0, 2).join('') : words[0];
+  return t.toLowerCase().replace(/[・:：!！?？「」『』【】()（）\[\]☆★♪〜~\-‐―_.,、。/／]/g, '').slice(0, 10);
 }
 
-/* Filmarks の★がある作品には少しだけ上乗せ。無い作品は損も得もしない */
-function quality(anime) {
-  if (typeof anime.score !== 'number') return 0;
-  return clamp((anime.score - 3.9) * 0.08, -0.04, 0.04);
+/* 片方がもう片方の頭と同じなら同じシリーズ（「呪術廻戦」と「呪術廻戦渋谷事変」） */
+export function sameFranchise(a, b) {
+  if (a.startsWith('se') || b.startsWith('se')) return a === b;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  return s.length >= 3 ? l.startsWith(s) : a === b;
 }
 
-export function rank(u, list, { exclude = new Set() } = {}) {
-  return list
-    .filter((a) => !exclude.has(a.id))
-    .map((a) => {
-      const sim = similarity(u, a.axes);
-      return { anime: a, sim, total: sim + quality(a), match: Math.round(sim * 100) };
-    })
-    .sort((x, y) => y.total - x.total);
-}
-
-/* 上から順に取るが、すでに選んだものと似すぎていたら少し下げる */
-export function pick(u, list, n = 3, opts = {}) {
-  const pool = rank(u, list, opts).slice(0, 18);
+/* 運命の 1 作と、次点 2 作。同じシリーズと、軸がほぼ同じ作品は並べない */
+export function pick(u, works, n = 3, exclude = new Set()) {
+  const ranked = rank(u, works, exclude);
   const chosen = [];
-  while (chosen.length < n && pool.length) {
-    let best = 0, bestScore = -Infinity;
-    pool.forEach((c, i) => {
-      const dup = chosen.length
-        ? Math.max(...chosen.map((p) => closeness(p.anime.axes, c.anime.axes))) : 0;
-      const score = c.total - 0.12 * Math.max(0, dup - 0.75) * 4;
-      if (score > bestScore) { bestScore = score; best = i; }
-    });
-    chosen.push(pool.splice(best, 1)[0]);
+  const used = [];
+  for (const c of ranked) {
+    if (chosen.length >= n) break;
+    const f = franchise(c.work);
+    if (used.some((g) => sameFranchise(f, g))) continue;
+    if (chosen.some((p) => cosine(p.work.v, c.work.v) > 0.985)) continue;
+    chosen.push(c);
+    used.push(f);
   }
   return chosen;
 }
 
+/* ローディングの「◯◯×◯◯で N 件を除外」。いちばんはっきりした 2 軸で、
+   逆の側に寄っている作品を数える（本当に数えた数） */
+export function exclusion(u, works) {
+  const top = AXES.map((a, i) => ({ a, i, w: Math.abs(u[i]) }))
+    .sort((x, y) => y.w - x.w).slice(0, 2);
+  const names = top.map(({ a, i }) => (u[i] >= 0 ? a.posName : a.negName));
+  let n = 0;
+  for (const w of works) {
+    if (top.some(({ i }) => u[i] !== 0 && Math.sign(w.v[i]) === -Math.sign(u[i]) && Math.abs(w.v[i]) >= 0.1)) n++;
+  }
+  return { names, excluded: n };
+}
+
 /* この作品がこの人に刺さる理由。両方が同じ側にはっきり寄っている軸を拾う */
-export function reasons(u, anime, max = 3) {
+export function reasons(u, w, max = 3) {
   return AXES
-    .map((a) => {
-      const x = u[a.key], y = anime.axes[a.key] || 0;
-      const same = Math.sign(x) === Math.sign(y) && Math.abs(x) >= 0.2 && Math.abs(y) >= 0.3;
-      return { a, strength: same ? Math.abs(x) * Math.abs(y) : 0, side: y >= 0 ? a.pos : a.neg };
+    .map((a, i) => {
+      const x = u[i], y = w.v[i];
+      const same = Math.sign(x) === Math.sign(y) && Math.abs(x) >= 0.2 && Math.abs(y) >= 0.25;
+      return { strength: same ? Math.abs(x * y) : 0, side: y >= 0 ? a.pos : a.neg };
     })
     .filter((r) => r.strength > 0)
     .sort((p, q) => q.strength - p.strength)

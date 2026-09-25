@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "data": "python3 scrape_filmarks.py",
+    "db": "python3 build_anime_db.py",
     "build": "node tools/build.mjs",
-    "test": "node tools/test.mjs",
-    "check": "node tools/build.mjs && node tools/test.mjs && node tools/e2e.mjs"
+    "test": "python3 -m unittest discover tests && node tools/test.mjs",
+    "e2e": "node tools/e2e.mjs",
+    "check": "node tools/build.mjs && python3 -m unittest discover tests && node tools/test.mjs && node tools/e2e.mjs",
+    "serve": "node tools/build.mjs && node tools/serve.mjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",

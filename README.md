@@ -1,113 +1,166 @@
-# 神アニメ診断（shindananime）
+# ガチアニメ診断（shindananime）
 
-18問・6軸で好みを割り出して、いちばん刺さるアニメを3つ選ぶ診断。
+18問・6軸であなたのアニメタイプ（例 `RDCP-VM`）と二つ名を割り出し、アニメのデータベース全体から
+「運命の1作」と次点2作を選ぶ診断。
+
 公開先は **https://koshinstudio.com/app/shindananime/**（紹介ページは `/works/shindananime/`）。
-
-このリポジトリにあるのはアプリ本体だけ。koshinstudio.com への取り付け（中継・紹介ページ）は
+このリポジトリにあるのはアプリ本体とデータ作りだけ。koshinstudio.com への取り付け（中継・紹介ページ）は
 `koshin-studio` リポジトリの担当。
 
 | | |
 |---|---|
-| `scrape_filmarks.py` | Filmarks から作品データを取って `anime_data.json` を書く。取れなければ手元の50作で作る |
-| `anime_data.json` | 診断が照合するデータ（git に入れる） |
+| `build_anime_db.py` | データ作り。Annict・Filmarks から取って `all_anime_db.json` を書く |
+| `data/default_titles.tsv` | APIキー無しでも動くための、主要・名作アニメ約500作（手入力） |
+| `all_anime_db.json` | 診断が照合するデータ（git に入れる） |
 | `src/` | アプリ本体（HTML / JS / Tailwind CSS） |
 | `src/questions.js` | 質問（18問） |
-| `src/logic.js` | 判定の計算（画面を触らない） |
-| `src/config.js` | **広告・アフィリエイトの設定はここだけ** |
-| `tools/build.mjs` | `dist/` に配る形を組む |
-| `tools/test.mjs` | 計算の検査 |
-| `tools/e2e.mjs` | ブラウザで最初から最後まで押す検査（`--shots` で画面写真も撮る） |
-| `store/` | 表紙（`cover-square-800x800.png`）。koshin-studio の `tools/images.py` が拾う |
+| `src/logic.js` | タイプコード・二つ名・コサイン類似度（画面を触らない） |
+| `src/config.js` | **広告・アフィリエイト・共有文面の設定はここだけ** |
+| `tools/` | build / serve / 検査 / 表紙 |
+| `tests/` | `build_anime_db.py` の検査（通信は作り物に差し替える） |
 
-## いつもの流れ
+---
 
-    npm install                       # 初回だけ（Tailwind の CLI）
-    pip install -r requirements.txt   # 初回だけ（requests / beautifulsoup4）
+## 1. はじめて動かす（ローカル確認）
 
-    python3 scrape_filmarks.py        # データを作り直す（しなくてもよい）
-    npm run check                     # build → 計算の検査 → ブラウザの検査
-    npx wrangler pages deploy dist --project-name shindananime --branch main
+    npm install                       # Tailwind の CLI
+    pip install -r requirements.txt   # requests / beautifulsoup4
 
-**初回の deploy は必ず `--branch main` を付ける。** 付けないと、そのとき居た git の branch 名が
-本番ブランチとして登録される（koshin-studio の README「C. ゲームを新しく作った」を参照）。
+    python3 build_anime_db.py         # APIキー無し → 名作 約500作で all_anime_db.json を作る
+    npm run serve                     # → http://localhost:4600/app/shindananime/
 
-## 判定のしくみ
+本番と同じ `/app/shindananime/` の下で開く（相対指定の漏れがあればここで気づく）。
 
-6つの軸を、それぞれ -1〜+1 で持つ。
+検査をまとめて:
+
+    npm run check     # build → Python の検査 → 計算の検査 → ブラウザで最初から最後まで押す
+
+`node tools/e2e.mjs --shots` で `store/shot-*.png` に画面写真が残る（紹介ページ用）。
+
+## 2. データを作る（build_anime_db.py）
+
+    python3 build_anime_db.py                             # 手元の約500作だけ
+    ANNICT_TOKEN=xxxx python3 build_anime_db.py --annict   # + Annict の全作品
+    python3 build_anime_db.py --filmarks                   # + Filmarks のアニメ全部
+    SCRAPEDO_TOKEN=xxxx python3 build_anime_db.py --filmarks   # scrape.do を通す
+    python3 build_anime_db.py --filmarks --limit 30        # 試しに 30 件だけ
+
+トークンは**環境変数で渡す**。ファイルやリポジトリには書かない。
+
+### Annict API
+
+1. https://annict.com/settings/apps →「個人用アクセストークン」を作る（読み取りだけでよい）
+2. `ANNICT_TOKEN=... python3 build_anime_db.py --annict`
+
+- GraphQL（`https://api.annict.com/graphql`）の `searchWorks` を、シーズンごと（1960年〜来年）に頁を送って取る
+- 取るもの: タイトル・放送年・媒体（TV / MOVIE / OVA / WEB。OTHER は落とす）・画像 URL・見ている人の数
+- Annict にはあらすじとタグが無いので、それは Filmarks（と手元の一覧）から埋める
+- `--annict-since 2000` で取り始めの年を変えられる
+
+### Filmarks
+
+- まず `robots.txt` を読む。**許されていない道には行かない。読めなければ行かない**
+- robots.txt の `Sitemap:` から、名前に anime の付いた sitemap だけを辿り、`/animes/<シリーズ>/<シーズン>` を全部集める。
+  sitemap が無ければ一覧ページ（`FM_LIST_PATHS`）を辿る
+- 1 ページごとに ★スコア・レビュー数・あらすじ・レビュー本文・配信サービス・画像を取る
+- 間隔は既定 1.5 秒（これより短くはできない）。**1万ページで約4時間**
+- 取ったページは `.cache/pages/` に残る。**止めても、次は続きから**（取り直したい時は `.cache` を消す）
+- 429 / 503 が 3 回続いたらそこで止める
+- `SCRAPEDO_TOKEN` があれば、全部の取得（robots.txt 含む）を scrape.do 経由にする。
+  間隔と robots.txt はそのまま守る
+
+**回す前に Filmarks の利用規約を確かめること。** 自動取得やデータの再配布が禁じられているなら、
+Filmarks は回さず、Annict と手元の一覧だけで作る。Filmarks の HTML は予告なく変わる。
+取れなくなったら `SEL` と `FM_LIST_PATHS` を直す（`tests/test_build.py` の作り物の HTML も合わせる）。
+
+### まとめ方
+
+- タイトル（記号・空白を落として比べる）が同じで、放送年が1年以内なら同じ作品として1行にまとめる
+- 6軸の値:
+  - 手元の一覧の作品 … 手で付けたタグから計算（`TAGS`）。取れた文章の言葉を少しだけ混ぜる
+  - それ以外 … あらすじとレビュー本文に出る言葉（`TAG_WORDS`）を数えて、タグ → 軸にする
+  - 手がかりがほとんど無い作品（`--min-info` 未満）は落とす
+- 人気 `p`（0〜1）… Filmarks のレビュー数か Annict の見ている人の数の大きい方（対数）
+
+### all_anime_db.json の形
+
+1万件でも軽いよう、キーは短くしてある（`meta.keys` に説明がある）。
+
+    { "meta": {...}, "works": [
+      { "id":0, "t":"タイトル", "y":2013, "m":"TV", "s":4.3, "n":123456, "p":0.9, "i":1,
+        "v":[world, mood, structure, taste, visual, watch], "g":["タグ"], "syn":"あらすじの冒頭",
+        "img":"...", "fm":"Filmarks の URL", "an":Annict の id, "se":シリーズ id, "vod":["unext"], "src":"adf" } ] }
+
+## 3. 判定のしくみ
 
 | 軸 | + | - | 問題 |
 |---|---|---|---|
-| world 世界観 | R 現実・現代 | F 異世界・SF | Q1–3 |
-| mood 後味・刺激 | D ダーク | H ハッピー | Q4–6 |
-| structure 構成・テンポ | C 伏線・考察 | S テンポ・直感 | Q7–9 |
-| bond 人間関係 | G 群像・絆 | I 孤高・推し | Q10–12 |
-| taste サブテイスト | P 心理戦・ドラマ | A アクション・熱量 | Q13–15 |
-| watch 視聴・演出 | V 映像美・じっくり没入 | L 気軽・一気見 | Q16–18 |
+| 世界観 | R 現実・現代 | F 異世界・SF | Q1–3 |
+| 後味・刺激 | D ダーク | H ハッピー | Q4–6 |
+| 構成・テンポ | C 伏線・考察 | S テンポ・勢い | Q7–9 |
+| サブテイスト | P 心理戦・言葉 | A アクション・迫力 | Q10–12 |
+| 視覚・フェチズム | V 映像美・演出 | ST ストーリー・脚本 | Q13–15 |
+| 視聴スタイル | M 熟読・考察 | L 一気見・サクッと | Q16–18 |
 
-- 回答は5段階（A / どちらかといえばA / どちらともいえない / どちらかといえばB / B）→ +1, +0.5, 0, -0.5, -1
-- 軸ごとに平均して、その人の6つの値にする。タイプは符号で6文字（例 `RDCIPV`）
-- 作品も同じ6軸の値を持つ。近さは軸ごとの差で測り、**はっきり答えた軸ほど重く**見る
-- Filmarks の★が取れている作品には、ごく少しだけ上乗せする（±0.04）
-- 3作が似たものばかりにならないよう、選んだ作品と近すぎる候補は少し下げる
-- 「見た」を押すと、その作品を除いて次に近い作品と入れ替える
+- 回答は5段階（A / どちらかといえばA / どちらともいえない / どちらかといえばB / B）→ +1, +0.5, 0, -0.5, -1。軸ごとに平均
+- **タイプコード**: 6軸の勝った側の文字を `[軸1][軸2][軸3][軸4]-[軸5][軸6]` に並べる（`RDCP-VM`、`FHSA-STL`）。ちょうど0なら + 側
+- **二つ名**: 次の4つは決め打ち。残り60通りは「世界観×後味」「構成×テイスト」「視覚×視聴」の3部品を組んで作る（64通りすべて別の名前）
 
-作品側の軸は、フォールバックの50作は手で付けた見立て。Filmarks から新しく取れた作品は
-レビュー本文に出る言葉（胸糞・伏線・作画 など）の数から見積もる（`TAG_AXES`）。
+  | コード | 二つ名 |
+  |---|---|
+  | RDCP-VM | 深淵を覗く考察コレクター |
+  | FHSA-STL | 脳汁全開の爽快エンタメハンター |
+  | FDCA-VM | 異世界を旅するロマン追及者 |
+  | RHSP-STL | 現実逃避のライトファン |
 
-## データの取り方（scrape_filmarks.py）
+- **選び方**: 全作品とコサイン類似度を取り、`0.82×cos + 0.12×人気 + 0.06×★` の順に並べる。
+  同じシリーズ（1期・2期・劇場版）と、軸がほぼ同じ作品は並べない
+- **適合度**: `50 + 50×cos`（%）
+- **ローディングの「N件を除外」**: いちばんはっきり答えた2軸で、逆の側に寄っている作品を本当に数えた数。
+  件数も DB の実際の件数を出す（1万件の DB を作れば「10,000件超」になる）
 
-- 先に robots.txt を読む。**読めなければ取りに行かない**
-- リクエストの間隔は既定 2.0 秒（下限 1.5 秒）。429 が返ったらそこで止める
-- 取れた作品が10件未満なら、手元の50作で埋める（`source` が `mixed` / `fallback` になる）
-- Filmarks の HTML は変わる。取れなくなったら `SEL` と `LIST_PATHS` を直す
+## 4. 収益（広告・アフィリエイト）
 
-**Filmarks の利用規約を確かめてから回すこと。** 自動での取得や、取ったデータの再配布を
-禁じている場合は、スクリプトは回さず `--fallback-only` で使う。
+設定は `src/config.js` だけ。
 
-### データの出し方（権利）
+### 広告枠
 
-- **スコア**: 出すときは「Filmarks の★」「いつ時点か」を書き、作品ページへリンクする（画面はそうなっている）
-- **あらすじ**: 取った公式あらすじは権利者のもの。今は400字で切って出している。
-  気になるなら `scrape_filmarks.py` で空にして、自分の一行紹介を使う
-- **画像**: 作品の絵は権利者のもの。`config.js` の `showImages` は `false`（色の札で代わりに出す）。
-  使ってよいと確かめるまでは変えない
-- フォールバックの50作は **スコアを持たない**（`null`）。数字をでっち上げないため。
-  画面では「Filmarks でレビューを見る」リンクだけを出す
+- 結果画面のいちばん上（`slots.top`）と、解析中の画面のまん中（`slots.loading`）
+- `ads.enabled` が false の間は、枠線と「スポンサーリンク」だけのダミー枠。`showPlaceholder: false` で消せる
+- `enabled` にして `client` と各 slot を埋めると、その枠だけ AdSense が入る（script はその時に初めて読む）
+- **解析中の枠の注意**: 中身が少なく自動で移る画面は、AdSense の「コンテンツの無い画面への広告」に当たる恐れがある。
+  審査前に方針を確かめること。心配なら `loadingPr`（自前の PR 枠）に切り替える
+- `ads.txt` は **koshinstudio.com の直下**に置く（koshin-studio リポジトリ）。広告を出し始めたら、
+  koshin-studio の `privacy/index.html`（あつかい）の「広告について」も書き足す
 
-## 収益（広告・アフィリエイト）
+### 配信ボタン（アフィリエイト）
 
-設定は `src/config.js` だけ。**何も埋めなければ、他社の script は一切読み込まない。**
+- どの作品カードにも「DMM TVで無料体験視聴する ➔」「U-NEXTで31日間無料体験 ➔」が出る
+- `vod[].url` にアフィリエイトリンクを入れる。`{q}` に作品名、`{url}` にそのサービスの検索 URL が入る
+  （例 A8.net: `https://px.a8.net/svt/ejp?a8mat=XXXX&a8ejpredirect={url}`）
+- url を入れたボタンには **PR の札と `rel="sponsored"`** が付き、結果の下に「アフィリエイトリンクです」の注記が出る。
+  ステマ規制（2023年10月〜）に沿うためなので、外さないこと
+- url が空の間は各サービスの検索ページへのただのリンク
+- 「31日間無料」などの条件はサービス側で変わる。**提携先の最新の条件と `label` を合わせること**
+- その作品が本当にそのサービスで見られるかは分からない（画面にも「各サービスでご確認ください」と出している）
 
-### 配信サービス（アフィリエイト）
+### 共有
 
-- 各作品に「U-NEXTで探す」などのボタンが出る。既定は各サービスの検索ページへのただのリンク
-- `vod[].affiliate` に ASP のリンクの型を書くと、そのボタンだけ
-  - `rel="sponsored noopener"` が付く
-  - ボタンに **PR** の札が出る
-  - 結果画面の下に「一部はアフィリエイトリンクです」の注記が出る
-- 型の中の `{q}` に作品名、`{url}` に検索 URL が（どちらも URL エンコードして）入る
-- ステマ規制（2023年10月〜）に沿って、広告であることは必ず見える形にしている。外さないこと
-- 配信の有無は変わるので「で見る」と言い切らない。Filmarks から配信情報が取れた作品だけ
-  「配信（取得時点）」として出し、それ以外は「で探す」にしている
-- **検索 URL の形は各サービスの都合で変わる。出す前に一つずつ踏んで確かめること**
+- `shareText` と `shareTags`。既定は
+  「私のアニメ診断タイプは【RDCP-VM：深淵を覗く考察コレクター型】でした！あなたにぴったりの神アニメは…？ #アニメ診断 #アニメ」
 
-### 解析中の画面（ローディング）
+## 5. 出す
 
-- 解析中の画面は約3.2秒。6軸のバーが伸びる、診断そのものの演出
-- ここには **AdSense を置かない**。中身の無い画面・遷移中の画面への広告は AdSense の方針違反になりうるため
-- 代わりに `loadingPr` で自前の PR 枠（アフィリエイト1枠）を出せる。PR 表記つき。
-  「無料」「○日間」などの条件は、確かめたものだけを書く
+    npm run check
+    npx wrangler pages deploy dist --project-name shindananime --branch main
 
-### AdSense
+**初回の deploy は必ず `--branch main` を付ける**（付けないと、居た git の branch 名が本番ブランチになる）。
+そのあと koshin-studio の README の順番（中継 → サイト）で出す。
 
-- `ads.enabled` を `true` にして `client` と `slots.result` を埋めると、結果画面の
-  「スポンサーリンク」枠にだけ出る。script は結果を出す時に初めて読む
-- `ads.txt` は **koshinstudio.com の直下**に置く（koshin-studio リポジトリ）。このアプリの Pages ではない
-- 出し始めたら koshin-studio の `privacy/index.html`（あつかい）の「広告について」を書き足す
+## 6. データの出し方（権利）
 
-## 置き方
-
-- `koshinstudio.com/app/shindananime/` は koshin-studio の `worker/` が
-  `https://shindananime.pages.dev` に中継している。中の指定は全部相対（`./app.js` など）にしてある
-- 実物のページは `noindex, follow`（meta と `_headers` の両方）。検索に出すのは紹介ページの方
-- データは端末の中で計算するだけ。回答はどこにも送らない
+- **★スコア**: 「Filmarks の★」「いつ時点か」を書き、作品ページへリンクしている
+- **あらすじ**: Filmarks の公式あらすじは権利者のもの。今は冒頭110字だけを出している
+- **画像**: `config.js` の `showImages` は `false`（色の札で代わりに出す）。使ってよいと確かめるまでは変えない
+- 手元の約500作は**スコアを持たない**（数字をでっち上げないため）。画面では「Filmarks でレビューを見る」だけを出す
+- 回答は端末の中で計算するだけで、どこにも送らない
