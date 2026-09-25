@@ -288,6 +288,20 @@ class WordsTest(unittest.TestCase):
             self.assertEqual(b.load_store(store)[1]['studios'], ['京都アニメーション'], '制作会社だけ残す')
 
 
+class MovieTest(unittest.TestCase):
+    def test_series_movies_are_dropped(self):
+        rows = [{'title': t, 'media': m} for t, m in [
+            ('ドラえもん', 'TV'), ('映画ドラえもん のび太の恐竜', 'MOVIE'), ('名探偵コナン', 'TV'),
+            ('名探偵コナン 緋色の弾丸', 'MOVIE'), ('君の名は。', 'MOVIE'), ('銀河鉄道999', 'TV'),
+            ('銀河鉄道の夜', 'MOVIE'), ('ONE PUNCH MAN', 'TV'), ('ONE PIECE FILM RED', 'MOVIE'),
+            ('劇場版 ヴァイオレット・エヴァーガーデン', 'MOVIE')]]
+        keep, dropped = b.drop_series_movies(rows)
+        self.assertEqual([r['title'] for r in keep if r['media'] == 'MOVIE'], ['君の名は。', '銀河鉄道の夜'])
+        self.assertEqual(len(dropped), 4)
+        self.assertTrue(all(r['media'] == 'TV' for r in keep if r['title'] in ('ドラえもん', '名探偵コナン')),
+                        'TV シリーズそのものは残す')
+
+
 class EnvTest(unittest.TestCase):
     def test_dotenv(self):
         import os

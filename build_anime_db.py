@@ -59,8 +59,12 @@ import sys
 import time
 import unicodedata
 import urllib.robotparser
+import warnings
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse
+
+# Mac の標準 Python（LibreSSL）で出る urllib3 の注意書き。動きには関係ないので黙らせる
+warnings.filterwarnings('ignore', message='urllib3 v2 only supports OpenSSL')
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_TSV = HERE / 'data' / 'default_titles.tsv'
@@ -739,6 +743,39 @@ NEG_PHRASES = [
 ]
 
 
+SERIES_MOVIE_MARK = re.compile(r'^(劇場版|映画|新劇場版|劇場総集編|劇場アニメ|劇場短編)|劇場版|THE MOVIE|the Movie|The Movie')
+
+
+def franchise_key(title):
+    """シリーズの札。先頭の「劇場版」などを外し、最初の区切りまで（英字は 2 語まで）"""
+    t = unicodedata.normalize('NFKC', title or '')
+    t = re.sub(r'^(劇場版|映画|新劇場版|劇場総集編|劇場アニメ|劇場短編)\s*', '', t)
+    m = re.match(r'^[「『](.+?)[」』]', t)
+    if m:
+        t = m.group(1)
+    words = re.split(r'[\s　]+', t.strip())
+    t = ''.join(words[:2]) if re.fullmatch(r'[\x20-\x7e]+', words[0] or '') else words[0]
+    return re.sub(r'[・:：!！?？「」『』【】()（）\[\]☆★♪〜~\-‐―_.,、。/／\'"]', '', t).lower()[:12]
+
+
+def drop_series_movies(rows):
+    """TV シリーズの続き・番外の劇場版（ドラえもん・コナン・しんちゃんの映画など）を外す。
+    オリジナルの単発映画（ジブリ・新海誠・今敏など）は残す。
+    見分け方: タイトルに「劇場版」などが付いている、または同じシリーズの TV / OVA / 配信作品がある"""
+    series = [franchise_key(r['title']) for r in rows if (r.get('media') or 'TV').upper() != 'MOVIE']
+    series = [k for k in series if len(k) >= 3]
+    keep, dropped = [], []
+    for r in rows:
+        if (r.get('media') or 'TV').upper() == 'MOVIE':
+            k = franchise_key(r['title'])
+            if SERIES_MOVIE_MARK.search(r['title']) or (len(k) >= 3 and any(
+                    k.startswith(x) or x.startswith(k) for x in series)):
+                dropped.append(r)
+                continue
+        keep.append(r)
+    return keep, dropped
+
+
 def text_tags(text):
     """文章に出てくる言葉をタグごとに数える。けなす言い方は先に取り除く。
     長い言葉から数えて、数えた所は消す（「神作画」を「作画」と二重に数えない）"""
@@ -917,6 +954,10 @@ def main(argv=None):
     ap.add_argument('--annict-min-watchers', type=int, default=30,
                     help='Annict のレビューを取るのは、見ている人がこの数以上の作品だけ')
     ap.add_argument('--no-annict-reviews', action='store_true', help='--annict で作品だけ取り、レビューは取らない')
+    ap.add_argument('--annict-reviews-only', action='store_true',
+                    help='作品は取り直さず（取ってある分を使う）、Annict のレビューだけ取る')
+    ap.add_argument('--keep-series-movies', action='store_true',
+                    help='シリーズものの劇場版（ドラえもん・コナンの映画など）も入れる。既定では外す')
     ap.add_argument('--filmarks', action='store_true',
                     help='Filmarks のアニメを取る。取ったことのある作品は飛ばす（毎期の追加はこれだけ）')
     ap.add_argument('--refresh-since', type=int, default=None,
@@ -951,15 +992,16 @@ def main(argv=None):
 
     annict_store = load_store(ANNICT_STORE)
     annict = []
-    if args.annict:
+    if args.annict or args.annict_reviews_only:
         token = os.environ.get('ANNICT_TOKEN')
         if not token:
             log('ANNICT_TOKEN が無いので Annict は飛ばす')
         else:
-            try:
-                annict = fetch_annict(token, since=args.annict_since, limit=args.limit)
-            except Exception as e:  # noqa: BLE001
-                log('Annict で止まった:', e)
+            if not args.annict_reviews_only:
+                try:
+                    annict = fetch_annict(token, since=args.annict_since, limit=args.limit)
+                except Exception as e:  # noqa: BLE001
+                    log('Annict で止まった:', e)
             if annict:   # API は速いので、取れたら丸ごと入れ替える
                 ANNICT_STORE.parent.mkdir(parents=True, exist_ok=True)
                 ANNICT_STORE.write_text(''.join(json.dumps(a, ensure_ascii=False) + '\n' for a in annict),
@@ -993,7 +1035,11 @@ def main(argv=None):
     filmarks = list(store.values())
     log(f'Filmarks: {len(filmarks)} 作（{FILMARKS_STORE.name}）')
 
-    works = finish(merge(defaults, annict, filmarks))
+    rows = merge(defaults, annict, filmarks)
+    if not args.keep_series_movies:
+        rows, dropped_movies = drop_series_movies(rows)
+        log(f'シリーズものの劇場版を外した: {len(dropped_movies)} 作（--keep-series-movies で入れられる）')
+    works = finish(rows)
     before = len(works)
     works = [w for w in works if w['i'] >= args.min_info]
     for i, w in enumerate(works):

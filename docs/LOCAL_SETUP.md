@@ -126,10 +126,21 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 - 止まっても、同じコマンドをもう一度打てば続きから（取った作品は飛ばす）
 - 429 / 503 が続いたら自分で止まる。少し時間をおいてから、もう一度
 
+### 劇場版の扱い
+
+TV シリーズの続き・番外の劇場版（ドラえもん・コナン・しんちゃん・ONE PIECE の映画など）は、既定で外す。
+オリジナルの単発映画（ジブリ・新海誠・今敏など）は残す。シリーズの映画も入れたいときは `--keep-series-movies`。
+
+### Annict のレビューだけ取り直す
+
+作品一覧は取ってあるので、レビューだけ取りたいとき:
+
+    python3 build_anime_db.py --annict-reviews-only
+
 ## 7. できたら
 
     npm run check                    # 検査を全部
-    git add data/ all_anime_db.json
+    git add data/ all_anime_db.json      # all_anime_db.json は手元で作ったものが正（こちらからは触らない）
     git commit -m "Filmarks の全アニメを取った"
     git push
 
