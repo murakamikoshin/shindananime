@@ -39,6 +39,9 @@ export const PREFS = {
   gore: 'グロ', ecchi: 'お色気', isekai: '異世界転生', sports: 'スポーツ', mecha: 'ロボット',
   music: '音楽・アイドル', moe: '萌え絵', cg: '3DCG', kids: '子ども向け', long: '長編',
   movie: '劇場版', short: 'ショート', popular: '話題作',
+  school: '学園', fantasy: 'ファンタジー', scifi: 'SF', historical: '時代劇', modern: '現代舞台',
+  horror: 'ホラー', mystery: 'ミステリー', adventure: '冒険', hotblood: '熱血・爽快',
+  family: '家族もの', work: 'お仕事もの', mature: '大人向け',
 };
 const PREF_WHY = {
   love: '恋愛要素がしっかりある', gag: '笑える場面が多い', ensemble: 'キャラが入り乱れる群像劇',
@@ -47,6 +50,10 @@ const PREF_WHY = {
   music: '歌と演奏が主役', moe: 'かわいい絵柄', cg: '3DCGの迫力', kids: '家族でも見られる',
   long: 'どっぷり浸かれる長編', movie: '2時間で完結する劇場版', short: 'スキマ時間に見られる',
   popular: 'みんなが見ている鉄板作',
+  school: '学園の空気感', fantasy: '剣と魔法の世界観', scifi: 'SF的なガジェット',
+  historical: '昔の時代の舞台', modern: '今の日本の身近さ', horror: 'ぞくぞくする怖さ',
+  mystery: '謎解きの駆け引き', adventure: '知らない土地への冒険', hotblood: '熱くて爽快な展開',
+  family: '家族の絆', work: '働く人たちの奮闘', mature: '渋く大人びた空気感',
 };
 
 /* 好みの要素の答え。{ love: 1, gore: -1, ... }。答えていないものは入れない */
@@ -71,7 +78,10 @@ export function prefAdjust(p, w, cos = 1) {
     const f = (w.f && w.f[k]) || 0;
     adj += v > 0 ? 0.15 * v * f * fit : 0.30 * v * f;
   }
-  return adj;
+  /* 好みの要素は何問あっても「小さな上乗せ」のまま。上限が無いと、質問を増やすほど
+     （特に片方ばかり選んだ時）total が 1 を超えて、match% が 100% に張り付く作品だらけになり、
+     軸の一致度が持っていた「同じ系統でもニュアンスが違う」という差が消えてしまう */
+  return clamp(adj, -0.08, 0.08);
 }
 
 /* 苦手な要素（はっきり B を選んだもの）を含む作品の数。ローディングの表示用（本当に数えた数） */
@@ -163,7 +173,9 @@ export function cosine(u, v) {
 /* 1 作品の点。似ている度合いが主で、人気と★は少しだけ */
 function quality(w) {
   const s = typeof w.s === 'number' ? clamp((w.s - 3.2) / 1.3, 0, 1) : 0.4;
-  return 0.12 * (w.p || 0) + 0.06 * s;
+  /* cos との合計が 1 を超えやすいと、似た系統の作品が軒並み match 100% に張り付いて
+     ニュアンスの違いが消える。上乗せは控えめに（最大 0.126） */
+  return 0.084 * (w.p || 0) + 0.042 * s;
 }
 
 /* 診断に使える作品だけ（軸の手がかりが少なすぎるものは外す） */

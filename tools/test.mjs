@@ -11,10 +11,10 @@ const ok = (cond, msg) => { if (!cond) { console.error('× ' + msg); bad = 1; } 
 
 /* 形 */
 ok(CORE === 20, `基本は 20 問（いま ${CORE}）`);
-ok(questions.length === 38, `追加を入れて 38 問（いま ${questions.length}）`);
+ok(questions.length === 50, `好みの要素を入れて 50 問（いま ${questions.length}）`);
 ok(questions.length <= 50, '50 問まで');
 const prefQs = questions.filter((q) => q.axis === 'pref');
-ok(prefQs.length === 18 && new Set(prefQs.map((q) => q.key)).size === 18, '好みの要素は 18 問、重ならない');
+ok(prefQs.length === 30 && new Set(prefQs.map((q) => q.key)).size === 30, '好みの要素は 30 問、重ならない');
 ok(prefQs.every((q) => PREFS[q.key]), '好みの要素に名前がある');
 ok(questions.slice(0, CORE).every((q) => q.axis !== 'pref'), '基本の 20 問に好みの要素は入らない');
 const featKeys = new Set(db.works.flatMap((w) => Object.keys(w.f || {})));

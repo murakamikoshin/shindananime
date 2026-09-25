@@ -153,6 +153,18 @@ FEATURES = {
     'healing':  {'癒し': 1.0, '日常': .6, 'グルメ': .4},
     'isekai':   {'異世界': 1.0},
     'short':    {'ショート': 1.0},
+    'school':     {'学園': 1.0},
+    'fantasy':    {'ファンタジー': 1.0},
+    'scifi':      {'SF': 1.0},
+    'historical': {'歴史': 1.0},
+    'modern':     {'現代': 1.0},
+    'horror':     {'ホラー': 1.0},
+    'mystery':    {'ミステリー': 1.0, 'サスペンス': .8},
+    'adventure':  {'冒険': 1.0},
+    'hotblood':   {'熱い': 1.0, '爽快': .7},
+    'family':     {'家族': 1.0},
+    'work':       {'お仕事': 1.0},
+    'mature':     {'大人': 1.0},
 }
 
 # 文章（あらすじ・レビュー）に出る言葉 → タグ。
@@ -496,6 +508,8 @@ VOD_NAMES = {
     'unext': ['U-NEXT', 'U‐NEXT', 'UNEXT'], 'dmmtv': ['DMM TV', 'DMMTV'],
     'danime': ['dアニメストア'], 'prime': ['Prime Video', 'プライム・ビデオ'],
     'netflix': ['Netflix'], 'abema': ['ABEMA'], 'hulu': ['Hulu'], 'disney': ['Disney+'],
+    'telasa': ['TELASA', 'テラサ'], 'fod': ['FOD'], 'lemino': ['Lemino', 'レミノ'],
+    'bandaichannel': ['バンダイチャンネル'],
 }
 
 

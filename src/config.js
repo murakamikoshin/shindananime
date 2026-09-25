@@ -55,6 +55,76 @@ export const CONFIG = {
       search: 'https://video.unext.jp/freeword?query={q}',
       className: 'bg-[#1b1b1b] ring-1 ring-white/30 hover:bg-[#2a2a2a]',
     },
+    {
+      id: 'prime',
+      label: 'Prime Videoで探す ➔',
+      url: '',
+      search: 'https://www.amazon.co.jp/s?k={q}&i=instant-video',
+      className: 'bg-[#00A8E1] hover:bg-[#33bce8]',
+    },
+    {
+      id: 'netflix',
+      label: 'Netflixで探す ➔',
+      url: '',
+      search: 'https://www.netflix.com/search?q={q}',
+      className: 'bg-[#E50914] hover:bg-[#f21c27]',
+    },
+    {
+      id: 'abema',
+      label: 'ABEMAで探す ➔',
+      url: '',
+      search: 'https://abema.tv/search?q={q}',
+      className: 'bg-[#00C4B4] hover:bg-[#1ad6c6]',
+    },
+    {
+      id: 'hulu',
+      label: 'Huluで探す ➔',
+      url: '',
+      search: 'https://www.hulu.jp/search?q={q}',
+      className: 'bg-[#1CE783] hover:bg-[#3ff29a] text-ink',
+    },
+    {
+      id: 'disney',
+      label: 'Disney+を見る ➔',
+      url: '',
+      search: 'https://www.disneyplus.com/ja-jp',   // 未ログインだと検索URLが無いので、トップへ
+      className: 'bg-[#113CCF] hover:bg-[#2a52e0]',
+    },
+    {
+      id: 'danime',
+      label: 'dアニメストアで探す ➔',
+      url: '',
+      search: 'https://animestore.docomo.ne.jp/animestore/sch_pc?searchKey={q}&vodTypeList=svod_tvod',
+      className: 'bg-[#E2571C] hover:bg-[#ee6a30]',
+    },
+    {
+      id: 'telasa',
+      label: 'TELASAで探す ➔',
+      url: '',
+      search: 'https://www.telasa.jp/search?q={q}',
+      className: 'bg-[#F26522] hover:bg-[#f77e42]',
+    },
+    {
+      id: 'fod',
+      label: 'FODで探す ➔',
+      url: '',
+      search: 'https://fod.fujitv.co.jp/psearch/?keyword={q}',
+      className: 'bg-[#E5001C] hover:bg-[#f2192f]',
+    },
+    {
+      id: 'lemino',
+      label: 'Leminoで探す ➔',
+      url: '',
+      search: 'https://lemino.docomo.ne.jp/search/word/{q}',
+      className: 'bg-[#EB4185] hover:bg-[#f15a97]',
+    },
+    {
+      id: 'bandaichannel',
+      label: 'バンダイチャンネルを見る ➔',
+      url: '',
+      search: 'https://www.b-ch.com/',   // 検索URLの形が確かめられなかったので、トップへ
+      className: 'bg-[#1E3A8A] hover:bg-[#2c4fae]',
+    },
   ],
 
   /* 共有の文面。{code} {name} が入る */

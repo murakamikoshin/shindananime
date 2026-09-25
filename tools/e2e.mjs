@@ -6,6 +6,9 @@ import { execSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { serve, BASE } from './serve.mjs';
+import { questions } from '../src/questions.js';
+
+const TOTAL = questions.length;
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = process.argv.includes('--shots');
@@ -33,7 +36,11 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('requestfailed', (r) => errors.push('failed ' + r.url()));
+  page.on('requestfailed', (r) => {
+    /* 作品の画像は他所のサイト（公式サイト・Filmarks）から読む。落ちていたり弾かれたりは
+       こちらの不具合ではないので、画像の読み込み失敗はエラー扱いにしない */
+    if (r.resourceType() !== 'image') errors.push('failed ' + r.url());
+  });
   const phone = vp.name === 'phone';
 
   await page.goto(url);
@@ -44,32 +51,20 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   await page.click('#start');
 
   /* 深淵を覗く考察コレクター（RDCP-VM）に寄せて答える。途中で一度戻る */
-  /* 最後の 2 問（画質・年代）は「新しめがいい」 */
-  const pattern = [1, 1, 0.5, 1, 1, 0.5, 1, 1, 1, 1, 1, 0.5, 1, 0.5, 1, 1, 1, 0, 1, 1];
+  /* 最後の 2 問（画質・年代）は「新しめがいい」。そのあとは好みの要素（30問）が続く。
+     グロとお色気は苦手、恋愛は好き、あとは「どちらともいえない」 */
+  const core = [1, 1, 0.5, 1, 1, 0.5, 1, 1, 1, 1, 1, 0.5, 1, 0.5, 1, 1, 1, 0, 1, 1];
+  const prefExtra = { 20: 1, 25: -1, 26: -1 };
+  const pattern = core.concat(Array.from({ length: TOTAL - core.length }, (_, i) => prefExtra[core.length + i] ?? 0));
   for (let i = 0; i < pattern.length; i++) {
-    ok((await page.textContent('#count')).trim() === `${i + 1}/20`, `${i + 1}/20 の数え方`);
+    ok((await page.textContent('#count')).trim() === `${i + 1}/${TOTAL}`, `${i + 1}/${TOTAL} の数え方`);
     if (phone && i === 3) await shot(page, 'quiz');
     if (i === 5) {
       await page.click('#back');
-      ok((await page.textContent('#count')).trim() === '5/20', '戻る');
+      ok((await page.textContent('#count')).trim() === `5/${TOTAL}`, '戻る');
       await page.click(`#qbox .choice[data-v="${pattern[4]}"]`);
     }
     await page.click(`#qbox .choice[data-v="${pattern[i]}"]`);
-  }
-
-  /* 基本の 20 問が終わると、結果か追加かを選ぶ画面。スマホは追加の 18 問まで、PC はそのまま結果へ */
-  await page.waitForSelector('#more:not([hidden])');
-  if (phone) {
-    await shot(page, 'more');
-    await page.click('#more-go');
-    /* グロとお色気は苦手、恋愛は好き、あとは「どちらともいえない」 */
-    const extra = { 20: 1, 25: -1, 26: -1 };
-    for (let i = 20; i < 38; i++) {
-      ok((await page.textContent('#count')).trim() === `${i + 1}/38`, `${i + 1}/38 の数え方`);
-      await page.click(`#qbox .choice[data-v="${extra[i] ?? 0}"]`);
-    }
-  } else {
-    await page.click('#more-skip');
   }
 
   const t0 = Date.now();
@@ -81,8 +76,8 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   if (phone) await shot(page, 'loading');
   await page.waitForFunction(() => document.querySelectorAll('#loading-log li').length >= 4);
   const lt = await logText();
-  ok(lt.includes(phone ? 'の嗜好パラメータを照合中' : '20の嗜好パラメータを照合中'), 'ログの問題数');
-  if (phone) ok(/苦手な『グロ』『お色気』を含む[\d,]+件を後ろに回しています/.test(lt), '苦手な要素のログ: ' + lt);
+  ok(lt.includes(`${TOTAL}の嗜好パラメータを照合中`), 'ログの問題数');
+  ok(/苦手な『グロ』『お色気』を含む[\d,]+件を後ろに回しています/.test(lt), '苦手な要素のログ: ' + lt);
   await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
   const took = Date.now() - t0;
   ok(took >= 3800 && took < 6500, `解析中はおよそ 4 秒（${took} ms）`);
@@ -93,13 +88,8 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   ok(code === 'RDCP-VM', 'タイプ: ' + code);
   ok(name === '【深淵を覗く考察コレクター型】', '二つ名: ' + name);
   ok(await page.isVisible('#ad-top'), '結果の一番上に広告枠');
-  if (phone) {
-    const sum = await page.textContent('#pref-summary');
-    ok(sum.includes('好き: 恋愛') && sum.includes('苦手: グロ・お色気'), '好き・苦手のまとめ: ' + sum);
-    ok(await page.isHidden('#more-from-result'), '追加まで答えた人には「精度を上げる」を出さない');
-  } else {
-    ok(await page.isVisible('#more-from-result'), '20 問で終えた人には「精度を上げる」を出す');
-  }
+  const sum = await page.textContent('#pref-summary');
+  ok(sum.includes('好き: 恋愛') && sum.includes('苦手: グロ・お色気'), '好き・苦手のまとめ: ' + sum);
   ok((await page.getAttribute('#year-chips [data-year="2010"]', 'aria-pressed')) === 'true', '新しめを選ぶと、はじめから 2010 年以降に絞る');
   const fate = await page.textContent('#fate h3');
   const runners = await page.$$eval('#runners h3', (hs) => hs.map((h) => h.textContent));
@@ -119,11 +109,11 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   await page.click('#year-chips [data-year="2010"]');
   ok((await page.textContent('#fate h3')) === fate, '2010 年以降に戻すと、同じ運命の1作');
 
+  /* 配信ボタンは、その作品が実際にあるサービスの数だけ出る（0〜12個。w.vod が分からなければ全部） */
   const vod = await page.$$eval('#fate a[data-vod]', (as) => as.map((a) => [a.textContent, a.rel, a.href]));
-  ok(vod.length === 2, '配信ボタンは 2 つ');
-  ok(vod[0][0].includes('DMM TVで無料体験視聴する ➔') && vod[1][0].includes('U-NEXTで31日間無料体験 ➔'), 'ボタンの文言');
+  ok(vod.length >= 1 && vod.length <= 12, `配信ボタンは1〜12個（いま ${vod.length}）`);
+  ok(vod.every(([label]) => /➔$/.test(label)), 'ボタンの文言: ' + vod.map(([l]) => l).join(','));
   ok(vod.every(([, rel]) => !rel.includes('sponsored')), '提携リンクを入れていなければ sponsored は付かない');
-  ok((await page.$$('#runners a[data-vod]')).length === 4, '次点にもボタン');
   ok(!(await page.content()).includes('googlesyndication'), '広告を有効にしていなければ script を読まない');
 
   const share = new URL(await page.getAttribute('#share-x', 'href'));
@@ -139,21 +129,14 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
     await shot(page, 'result-full', true);
   }
 
-  /* 見た → 差し替え */
+  /* 見た → 差し替え。次点が繰り上がる（新しい別の作品に飛ばない） */
   await page.click('#fate button');
   const after = await page.textContent('#fate h3');
   ok(after !== fate, '見た で運命の1作が替わる');
-  ok(!runners.includes(after), '差し替えた作品が次点と重ならない');
+  ok(after === runners[0], '見た → 次点1が運命の1作に繰り上がる: ' + after + ' ≠ ' + runners[0]);
 
-  if (!phone) {
-    await page.click('#more-from-result');
-    ok((await page.textContent('#count')).trim() === '21/38', '結果から追加の問題へ（答えはそのまま）');
-    for (let i = 20; i < 38; i++) await page.click('#qbox .choice[data-v="0"]');
-    await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
-    ok((await page.textContent('#type-code')).trim() === code, '追加の問題はタイプコードを変えない');
-  }
   await page.click('#retry');
-  ok((await page.textContent('#count')).trim() === '1/20', 'もう一度');
+  ok((await page.textContent('#count')).trim() === `1/${TOTAL}`, 'もう一度');
   ok(errors.length === 0, `${vp.name}: エラー ${errors.join(' | ')}`);
   await page.close();
 }
