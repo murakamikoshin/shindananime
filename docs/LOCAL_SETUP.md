@@ -103,7 +103,16 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 
 `sitemaps` が空なら、一覧ページを辿る方（`FM_LIST_PATHS`）を使う。これも実物に合わせて直してもらう。
 
-## 5. 少しだけ回す → 全部回す
+## 5. Annict を取る（任意・公式 API なので速い）
+
+    python3 build_anime_db.py --annict --limit 50     # 試しに 50 作とそのレビュー
+    python3 build_anime_db.py --annict                # 全部。作品 → レビューの順に取る
+
+- 作品は数分〜十数分。レビューは見ている人が 30 人以上の作品だけ、10 作ずつ取る
+- 止まっても、もう一度打てば続きから（レビューは取ってある作品を飛ばす）
+- 最後の行の「手がかり不足で落とした ○○」が減っていれば、レビューが効いている
+
+## 6. 少しだけ回す → 全部回す
 
     python3 build_anime_db.py --filmarks --limit 30      # 30 作だけ
     npm run serve                                         # http://localhost:4600/app/shindananime/ で見る
@@ -117,7 +126,7 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 - 止まっても、同じコマンドをもう一度打てば続きから（取った作品は飛ばす）
 - 429 / 503 が続いたら自分で止まる。少し時間をおいてから、もう一度
 
-## 6. できたら
+## 7. できたら
 
     npm run check                    # 検査を全部
     git add data/ all_anime_db.json
@@ -126,9 +135,9 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 
 `all_anime_db.json` が大きすぎる（数 MB を超える）ときは Claude Code に相談する（あらすじを短くする、分割する など）。
 
-## 7. 毎期の追加（1 月・4 月・7 月・10 月）
+## 8. 毎期の追加（1 月・4 月・7 月・10 月）
 
-    python3 build_anime_db.py --filmarks --refresh-since 2026
+    python3 build_anime_db.py --annict --filmarks --refresh-since 2026
     npm run check && git add data/ all_anime_db.json && git commit -m "2026 年春の新作を足す" && git push
 
 - `--filmarks` は、取ったことのある作品を飛ばして新しいページだけ取る

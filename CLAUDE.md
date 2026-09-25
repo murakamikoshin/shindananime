@@ -7,7 +7,7 @@
 
 - Filmarks: robots.txt を守る。間隔は 1.5 秒より縮めない（`Fetcher.MIN_SLEEP`）。scrape.do 経由でも同じ
 - トークンは環境変数（`.env`）だけ。コードやコミットに書かない
-- レビュー本文そのものは保存しない（`counts` に言葉の数だけ残す）
+- レビュー本文そのものは保存しない（`counts` に言葉の数だけ残す）。Filmarks も Annict も同じ
 - 手元の名作一覧（data/default_titles.tsv）にスコアをでっち上げない
 - 画面の数字（件数・除外数）は実際に数えた値を出す
 - アフィリエイトのボタンは PR 表記と rel="sponsored" を外さない

@@ -13,7 +13,8 @@
     python3 build_anime_db.py --filmarks
     SCRAPEDO_TOKEN=xxxx python3 build_anime_db.py --filmarks   # scrape.do を通す
 
-    # Annict も足す（任意。Filmarks に無い作品と「見ている人の数」が増える）
+    # Annict も足す（任意。作品とレビューの言葉が増える。公式 API なので速い）
+    python3 build_anime_db.py --annict                       # 作品 → レビューの順に取る
     python3 build_anime_db.py --annict --filmarks
 
     # 試しに少しだけ（本番の前に必ず）
@@ -66,6 +67,8 @@ DEFAULT_TSV = HERE / 'data' / 'default_titles.tsv'
 # 取ったものの置き場。1 行 1 作品。git に入れる（何時間もかけて取ったものなので）
 FILMARKS_STORE = HERE / 'data' / 'filmarks_works.jsonl'
 ANNICT_STORE = HERE / 'data' / 'annict_works.jsonl'
+# Annict のレビューから数えた言葉。1 行 1 作品（annict_id と counts）。本文そのものは残さない
+ANNICT_REVIEWS_STORE = HERE / 'data' / 'annict_reviews.jsonl'
 CACHE = HERE / '.cache'
 
 # ---------------------------------------------------------------- 軸
@@ -350,6 +353,76 @@ def fetch_annict(token, since=1960, until=None, session=None, limit=None, sleep=
     return out
 
 
+ANNICT_REVIEWS_QUERY = '''
+query($ids: [Int!]) {
+  searchWorks(annictIds: $ids, first: %d) {
+    nodes { annictId reviews(first: %d) { nodes { body } } }
+  }
+}'''
+
+
+def fetch_annict_reviews(token, works, store=ANNICT_REVIEWS_STORE, session=None, per_work=30,
+                         batch=10, min_watchers=30, sleep=1.0, limit=None):
+    """Annict の作品ごとのレビューを取り、言葉の数（counts）だけを store に 1 行ずつ足す。
+    本文は残さない。取ったことのある作品は飛ばすので、止めても続きから。
+    見ている人が min_watchers 人未満の作品は、レビューがほぼ無いので飛ばす"""
+    if session is None:
+        import requests
+        session = requests.Session()
+    done = {r['annict_id'] for r in load_store(store).values()}
+    todo = [w for w in works if w.get('annict_id') and w['annict_id'] not in done
+            and (w.get('watchers') or 0) >= min_watchers]
+    todo.sort(key=lambda w: -(w.get('watchers') or 0))   # 人気のある作品から
+    if limit:
+        todo = todo[:limit]
+    log(f'Annict のレビュー: {len(todo)} 作を回る（{batch} 作ずつ、{len(todo) / batch * sleep / 60:.0f} 分ほど。'
+        f'取ってある {len(done)} 作は飛ばす）')
+    head = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    query = ANNICT_REVIEWS_QUERY % (batch, per_work)
+    Path(store).parent.mkdir(parents=True, exist_ok=True)
+    got = 0
+    with open(store, 'a', encoding='utf-8') as sink:
+        for i in range(0, len(todo), batch):
+            ids = [w['annict_id'] for w in todo[i:i + batch]]
+            time.sleep(sleep)
+            r = session.post(ANNICT_GQL, headers=head, timeout=60, json={'query': query, 'variables': {'ids': ids}})
+            if r.status_code == 429:
+                log('Annict: 429。少し待つ')
+                time.sleep(60)
+                r = session.post(ANNICT_GQL, headers=head, timeout=60, json={'query': query, 'variables': {'ids': ids}})
+            r.raise_for_status()
+            data = r.json()
+            if data.get('errors'):
+                raise RuntimeError('Annict: ' + json.dumps(data['errors'], ensure_ascii=False)[:300])
+            seen = set()
+            for n in data['data']['searchWorks']['nodes']:
+                bodies = [x.get('body') or '' for x in ((n.get('reviews') or {}).get('nodes') or [])]
+                text = ' '.join(b for b in bodies if b.strip())
+                sink.write(json.dumps({'annict_id': n['annictId'], 'counts': text_tags(text),
+                                       'n': sum(1 for b in bodies if b.strip()),
+                                       'fetched_at': dt.date.today().isoformat()}, ensure_ascii=False) + '\n')
+                seen.add(n['annictId'])
+                got += 1
+            for a in ids:   # 返ってこなかった作品も「見た」印を残す（毎回聞き直さない）
+                if a not in seen:
+                    sink.write(json.dumps({'annict_id': a, 'counts': {}, 'n': 0,
+                                           'fetched_at': dt.date.today().isoformat()}) + '\n')
+            sink.flush()
+            if (i // batch) % 20 == 0:
+                log(f'  {min(i + batch, len(todo))}/{len(todo)}')
+    return got
+
+
+def attach_annict_reviews(annict, store=ANNICT_REVIEWS_STORE):
+    """Annict の作品に、レビューで数えた言葉をくっつける"""
+    rev = {r['annict_id']: r for r in load_store(store).values()}
+    for a in annict:
+        r = rev.get(a.get('annict_id'))
+        if r and r.get('counts'):
+            a['counts'] = r['counts']
+    return annict
+
+
 # ---------------------------------------------------------------- Filmarks
 
 FM = 'https://filmarks.com'
@@ -592,6 +665,11 @@ def merge(defaults, annict, filmarks):
                 r['sources'] = list(dict.fromkeys(r['sources'] + v))
             elif k == 'tags':
                 r['tags'] = list(dict.fromkeys(r['tags'] + v))
+            elif k == 'counts':   # Filmarks と Annict のレビューで数えた言葉は足し合わせる
+                c = dict(r.get('counts') or {})
+                for t, n in (v or {}).items():
+                    c[t] = c.get(t, 0) + n
+                r['counts'] = c
             elif v not in (None, '', []) and r.get(k) in (None, '', []):
                 r[k] = v
             elif k in ('score', 'reviews', 'watchers', 'image', 'filmarks_url', 'vod') and v not in (None, '', []):
@@ -724,6 +802,9 @@ def main(argv=None):
     ap.add_argument('--out', default=str(HERE / 'all_anime_db.json'))
     ap.add_argument('--annict', action='store_true', help='Annict から全作品を足す（ANNICT_TOKEN が要る）')
     ap.add_argument('--annict-since', type=int, default=1960)
+    ap.add_argument('--annict-min-watchers', type=int, default=30,
+                    help='Annict のレビューを取るのは、見ている人がこの数以上の作品だけ')
+    ap.add_argument('--no-annict-reviews', action='store_true', help='--annict で作品だけ取り、レビューは取らない')
     ap.add_argument('--filmarks', action='store_true',
                     help='Filmarks のアニメを取る。取ったことのある作品は飛ばす（毎期の追加はこれだけ）')
     ap.add_argument('--refresh-since', type=int, default=None,
@@ -772,7 +853,14 @@ def main(argv=None):
                 ANNICT_STORE.write_text(''.join(json.dumps(a, ensure_ascii=False) + '\n' for a in annict),
                                         encoding='utf-8')
                 annict_store = load_store(ANNICT_STORE)
-    annict = list(annict_store.values())
+            if not args.no_annict_reviews and annict_store:
+                try:
+                    fetch_annict_reviews(token, list(annict_store.values()),
+                                         min_watchers=args.annict_min_watchers, limit=args.limit)
+                except Exception as e:  # noqa: BLE001
+                    log('Annict のレビューで止まった（取れた分は残っている。もう一度打てば続きから）:', e)
+    annict = attach_annict_reviews(list(annict_store.values()))
+    log(f"Annict のレビュー: {sum(1 for a in annict if a.get('counts'))} 作に手がかりあり")
     log(f'Annict: {len(annict)} 作（{ANNICT_STORE.name}）')
 
     store = load_store(FILMARKS_STORE)

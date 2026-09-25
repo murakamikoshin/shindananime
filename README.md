@@ -54,7 +54,11 @@
 
 - GraphQL（`https://api.annict.com/graphql`）の `searchWorks` を、シーズンごと（1960年〜来年）に頁を送って取る
 - 取るもの: タイトル・放送年・媒体（TV / MOVIE / OVA / WEB。OTHER は落とす）・画像 URL・見ている人の数
-- Annict にはあらすじとタグが無いので、それは Filmarks（と手元の一覧）から埋める
+- 続けて、作品ごとのレビュー（1 作 30 件まで）を 10 作ずつまとめて取る。見ている人が
+  `--annict-min-watchers`（既定 30）人未満の作品は飛ばす。`--no-annict-reviews` で取らない
+- レビュー本文は残さず、言葉の数（`counts`）だけを `data/annict_reviews.jsonl` に 1 作 1 行で足していく。
+  止めても続きから。この言葉から 6 軸を見積もるので、**Filmarks に無い作品も診断に出せる**
+- Annict にはあらすじと★が無い。★は Filmarks が取れた作品だけに出る
 - `--annict-since 2000` で取り始めの年を変えられる
 
 ### Filmarks
@@ -75,7 +79,7 @@ Filmarks は回さず、Annict と手元の一覧だけで作る。Filmarks の 
 
 ### 取ったものの置き場と、毎期の追加
 
-- Filmarks で取った作品は `data/filmarks_works.jsonl`、Annict は `data/annict_works.jsonl` に 1 行 1 作品で残る（git に入れる）
+- Filmarks で取った作品は `data/filmarks_works.jsonl`、Annict は `data/annict_works.jsonl`（作品）と `data/annict_reviews.jsonl`（レビューの言葉）に 1 行 1 作品で残る（git に入れる）
 - `--filmarks` を付けなくても、取ってある分は毎回 all_anime_db.json に入る
 - `--filmarks` は**取ったことのある作品を飛ばす**。毎期はこれで新作だけ取れる
 - `--refresh-since 2026` でその年以降の作品を取り直す（★の更新）。`--refresh-all` で全部
@@ -86,7 +90,7 @@ Filmarks は回さず、Annict と手元の一覧だけで作る。Filmarks の 
 - タイトル（記号・空白を落として比べる）が同じで、放送年が1年以内なら同じ作品として1行にまとめる
 - 6軸の値:
   - 手元の一覧の作品 … 手で付けたタグから計算（`TAGS`）。取れた文章の言葉を少しだけ混ぜる
-  - それ以外 … あらすじとレビュー本文に出る言葉（`TAG_WORDS`）を数えて、タグ → 軸にする
+  - それ以外 … あらすじと、Filmarks・Annict のレビューに出る言葉（`TAG_WORDS`）を足し合わせて数え、タグ → 軸にする
   - 手がかりがほとんど無い作品（`--min-info` 未満）は落とす
 - 人気 `p`（0〜1）… Filmarks のレビュー数か Annict の見ている人の数の大きい方（対数）
 

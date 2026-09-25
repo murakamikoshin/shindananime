@@ -201,6 +201,63 @@ class AnnictTest(unittest.TestCase):
         self.assertEqual(len(calls), 5, '4 シーズン + 2 頁目')
 
 
+class AnnictReviewsTest(unittest.TestCase):
+    BODY = '伏線の回収が見事で考察がはかどる。絶望的な展開、復讐。作画も神作画'
+
+    def session(self):
+        test = self
+
+        class S:
+            def __init__(self):
+                self.calls = []
+
+            def post(self, url, headers=None, json=None, timeout=None):
+                ids = json['variables']['ids']
+                self.calls.append(ids)
+                test.assertIn('reviews(first:', json['query'])
+                nodes = [{'annictId': i, 'reviews': {'nodes': [{'body': test.BODY}, {'body': ''}]}}
+                         for i in ids if i != 3]   # 3 は返ってこない作品
+                return Resp(js={'data': {'searchWorks': {'nodes': nodes}}})
+        return S()
+
+    def test_counts_only_and_resume(self):
+        works = [{'annict_id': i, 'title': f'w{i}', 'watchers': 1000 - i} for i in range(1, 6)]
+        works.append({'annict_id': 99, 'title': 'マイナー', 'watchers': 2})
+        with tempfile.TemporaryDirectory() as t:
+            store = Path(t) / 'rev.jsonl'
+            s = self.session()
+            b.fetch_annict_reviews('T', works, store=store, session=s, batch=2, sleep=0)
+            self.assertEqual(s.calls, [[1, 2], [3, 4], [5]], '人気順に 2 作ずつ。見ている人が少ない作品は飛ばす')
+            text = store.read_text(encoding='utf-8')
+            self.assertNotIn('回収が見事', text, 'レビュー本文そのものは残さない')
+            rows = b.load_store(store)
+            self.assertEqual(rows[1]['n'], 1, '空のレビューは数えない')
+            self.assertGreater(rows[1]['counts']['伏線'], 0)
+            self.assertEqual(rows[3]['counts'], {}, '返ってこなかった作品にも印を残す')
+            s2 = self.session()
+            b.fetch_annict_reviews('T', works, store=store, session=s2, batch=2, sleep=0)
+            self.assertEqual(s2.calls, [], '2 回目は取ってある作品を飛ばす')
+
+    def test_annict_only_work_becomes_usable(self):
+        with tempfile.TemporaryDirectory() as t:
+            store = Path(t) / 'rev.jsonl'
+            works = [{'annict_id': 1, 'title': 'Annict にしか無い作品', 'year': 2024, 'media': 'TV',
+                      'watchers': 5000, 'sources': ['annict']}]
+            b.fetch_annict_reviews('T', works, store=store, session=self.session(), sleep=0)
+            before = b.finish(b.merge([], [dict(w) for w in works], []))[0]
+            after = b.finish(b.merge([], b.attach_annict_reviews([dict(w) for w in works], store), []))[0]
+            self.assertLess(before['i'], 0.25, 'タイトルだけでは手がかり不足')
+            self.assertGreaterEqual(after['i'], 0.25, 'レビューの言葉で診断に使えるようになる')
+            self.assertGreater(after['v'][2], 0, '伏線・考察 → C 側')
+            self.assertGreater(after['v'][1], 0, '絶望・復讐 → D 側')
+
+    def test_counts_add_up_across_sources(self):
+        an = [{'title': 'X', 'year': 2020, 'counts': {'伏線': 2}, 'sources': ['annict']}]
+        fm = [{'title': 'X', 'year': 2020, 'counts': {'伏線': 3, '作画神': 1}, 'sources': ['filmarks']}]
+        row = b.merge([], an, fm)[0]
+        self.assertEqual(row['counts'], {'伏線': 5, '作画神': 1})
+
+
 class EnvTest(unittest.TestCase):
     def test_dotenv(self):
         import os
