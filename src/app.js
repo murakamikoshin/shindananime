@@ -257,7 +257,9 @@ function card(c, i, big) {
   const box = el('article', `pop overflow-hidden rounded-3xl border bg-panel ${big ? 'border-sun/60 shadow-2xl shadow-hot/20' : 'border-line'}`);
   box.style.animationDelay = `${i * 90}ms`;
 
-  const top = el('div', `relative flex items-end p-5 ${big ? 'h-56' : 'h-32'}`);
+  /* h ではなく min-h。タイトルが3行になった時に上のバッジ（次点・適合度）と
+     重ならないよう、固定の高さではなく足りない分だけ伸びるようにする */
+  const top = el('div', `relative flex items-end p-5 ${big ? 'min-h-56' : 'min-h-32'}`);
   if (CONFIG.showImages && w.img) {
     top.classList.add('bg-cover', 'bg-center');
     top.style.backgroundImage = `linear-gradient(to top, rgb(7 12 23 / .95), rgb(7 12 23 / .1)), url("${encodeURI(w.img)}")`;
@@ -268,7 +270,10 @@ function card(c, i, big) {
   top.append(
     el('span', 'absolute left-4 top-4 rounded-full bg-ink/70 px-3 py-1 text-xs font-black text-sun', big ? '運命の1作' : `次点 ${i}`),
     el('span', `absolute right-4 top-4 rounded-full bg-ink/70 px-3 py-1 font-black text-white ${big ? 'text-base' : 'text-xs'}`, `${c.match}%適合`),
-    el('h3', `font-black leading-tight drop-shadow ${big ? 'text-4xl' : 'text-2xl'}`, w.t),
+    /* mt-12: タイトルがどれだけ長くなっても、上のバッジ（次点・適合度）の
+       分だけは必ず空けておく（items-end で下寄せなので、margin が無いと
+       長いタイトルがバッジに埋もれる） */
+    el('h3', `mt-12 font-black leading-tight drop-shadow ${big ? 'text-4xl' : 'text-2xl'}`, w.t),
   );
 
   const body = el('div', 'grid gap-4 p-4 sm:p-5');
