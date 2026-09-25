@@ -62,6 +62,7 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - footer の「あつかい（プライバシー）」が koshinstudio.com 全体のページで関係ないという指摘 → このアプリ専用のプライバシーページを新設（`src/privacy/index.html`）。診断の回答・作品データ・広告(AdSense)・配信ボタンについて書いた。AdSenseの規約でプライバシーポリシーの掲示が必須なので、リンクは無くさずに作り直す方針にした（2026-09-25）。あわせて `tools/serve.mjs` が「ディレクトリ/index.html」を解決できていなかったので直した（本番の Cloudflare Pages は元々対応している）
 - バグ: DMM TV の検索URL（`/vod/search/`）が404になっていた（DMM TV 側の変更）。実際にブラウザで確かめて `/vod/list/` に直した（2026-09-25、`src/config.js`）
 - 質問画面で、問題文・選択肢の文字数によってボタンの位置がズレるのがストレスという指摘 → `#qtext` と A/B の選択肢ボタンに `min-h` を付けて、どの質問でも下のボタンの位置が揃うようにした（実際に最長・最短の質問で確認済み。2026-09-25、`src/index.html`）
+- バグ: 「アルプスの少女ハイジ」など、画像URLが `http://` の作品が出ない。https のこのアプリから混在コンテンツでブロックされていた（`heidi.ne.jp` は証明書も無い）。`https_only()` を作り、Annict・Filmarks 両方の画像取得と `merge()` の image 優先ロジックに適用。http の画像は「無い」扱いにして、後から来る https（大抵 Filmarks の CloudFront）で埋まるようにした。テストの `image: 'an.jpg'` のような作り物も https URL に直した（2026-09-25、`build_anime_db.py`）
 
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束

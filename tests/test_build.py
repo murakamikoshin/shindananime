@@ -385,9 +385,9 @@ class MergeTest(unittest.TestCase):
     def test_merge_and_finish(self):
         d = [x for x in b.load_defaults() if x['title'] == '進撃の巨人']
         an = [{'title': '進撃の巨人', 'year': 2013, 'media': 'TV', 'watchers': 20000, 'annict_id': 7,
-               'image': 'an.jpg', 'sources': ['annict']}]
+               'image': 'https://an.example/a.jpg', 'sources': ['annict']}]
         fm = [{'title': '進撃の巨人', 'year': 2013, 'score': 4.3, 'reviews': 100000, 'synopsis': 's',
-               'counts': {}, 'vod': ['unext'], 'image': 'fm.jpg', 'filmarks_url': 'https://filmarks.com/animes/1/2',
+               'counts': {}, 'vod': ['unext'], 'image': 'https://fm.example/f.jpg', 'filmarks_url': 'https://filmarks.com/animes/1/2',
                'series': 1, 'sources': ['filmarks']},
               {'title': '知らない作品', 'year': 2020, 'score': 3.5, 'reviews': 10,
                'synopsis': '異世界に転生した少年が魔王を倒す冒険。爆笑のギャグ', 'counts': {'爽快': 3, 'ギャグ': 2},
@@ -398,7 +398,7 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(len(works), 3)
         shingeki = next(w for w in works if w['t'] == '進撃の巨人')
         self.assertEqual((shingeki['s'], shingeki['an'], shingeki['src']), (4.3, 7, 'adf'))
-        self.assertEqual(shingeki['img'], 'an.jpg', 'Annict の画像が Filmarks より優先される')
+        self.assertEqual(shingeki['img'], 'https://an.example/a.jpg', 'Annict の画像が Filmarks より優先される')
         other = next(w for w in works if w['t'] == '知らない作品')
         self.assertEqual(other['img'], None, 'Annict に画像が無ければ Filmarks（image: None）のまま')
         self.assertLess(other['v'][0], 0, '異世界・転生・魔王 → F 側')
@@ -410,11 +410,23 @@ class MergeTest(unittest.TestCase):
         an = [{'title': 'まだ知らないアニメ', 'year': 2024, 'media': 'TV', 'watchers': 100,
                'annict_id': 99, 'image': None, 'sources': ['annict']}]
         fm = [{'title': 'まだ知らないアニメ', 'year': 2024, 'score': 3.8, 'reviews': 900,
-               'synopsis': 's', 'counts': {}, 'vod': [], 'image': 'fm2.jpg',
+               'synopsis': 's', 'counts': {}, 'vod': [], 'image': 'https://fm.example/f2.jpg',
                'filmarks_url': 'https://filmarks.com/animes/11/21', 'series': 11, 'sources': ['filmarks']}]
         works = b.finish(b.merge([], an, fm))
         w = next(x for x in works if x['t'] == 'まだ知らないアニメ')
-        self.assertEqual(w['img'], 'fm2.jpg', 'Annict に画像が無ければ Filmarks で補う')
+        self.assertEqual(w['img'], 'https://fm.example/f2.jpg', 'Annict に画像が無ければ Filmarks で補う')
+
+    def test_image_http_is_rejected_in_favor_of_filmarks_https(self):
+        # アルプスの少女ハイジで実際に踏んだやつ: Annict の画像が http（証明書の無い
+        # 公式サイトなど）だと、https のページからは混在コンテンツでブロックされて出ない
+        an = [{'title': 'ハイジもどき', 'year': 2024, 'media': 'TV', 'watchers': 100,
+               'annict_id': 100, 'image': 'http://old-site.example/thumb.png', 'sources': ['annict']}]
+        fm = [{'title': 'ハイジもどき', 'year': 2024, 'score': 4.0, 'reviews': 500,
+               'synopsis': 's', 'counts': {}, 'vod': [], 'image': 'https://fm.example/heidi.jpg',
+               'filmarks_url': 'https://filmarks.com/animes/12/22', 'series': 12, 'sources': ['filmarks']}]
+        works = b.finish(b.merge([], an, fm))
+        w = next(x for x in works if x['t'] == 'ハイジもどき')
+        self.assertEqual(w['img'], 'https://fm.example/heidi.jpg', 'http の画像は弾いて、Filmarks の https を使う')
 
     def test_cli_default_only(self):
         with tempfile.TemporaryDirectory() as t:

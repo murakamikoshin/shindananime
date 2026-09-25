@@ -350,6 +350,13 @@ class Fetcher:
 
 # ---------------------------------------------------------------- Annict
 
+
+def https_only(url):
+    """http:// の画像は、こちら（https）のページからだと混在コンテンツで
+    ブロックされて出ない（例: アルプスの少女ハイジの公式サイト）。https だけ通す"""
+    return url if url and url.startswith('https://') else None
+
+
 ANNICT_GQL = 'https://api.annict.com/graphql'
 ANNICT_QUERY = '''
 query($seasons: [String!], $after: String) {
@@ -398,7 +405,7 @@ def fetch_annict(token, since=1960, until=None, session=None, limit=None, sleep=
                     'media': (n.get('media') or 'TV').upper(),
                     'watchers': n.get('watchersCount'), 'annict_reviews': n.get('reviewsCount'),
                     'episodes': n.get('episodesCount'),
-                    'image': ((n.get('image') or {}).get('recommendedImageUrl')) or None,
+                    'image': https_only((n.get('image') or {}).get('recommendedImageUrl')),
                     'annict_id': n.get('annictId'), 'sources': ['annict'],
                 })
             if not page['pageInfo']['hasNextPage']:
@@ -666,7 +673,7 @@ def parse_filmarks(html, url):
         'counts': text_tags(' '.join([title, synopsis] + texts)),
         'fetched_at': dt.date.today().isoformat(),
         'vod': [k for k, names in VOD_NAMES.items() if any(n in vod_text for n in names)],
-        'image': _meta(soup, 'og:image') or None, 'filmarks_url': url,
+        'image': https_only(_meta(soup, 'og:image')), 'filmarks_url': url,
         'series': int(mm.group(1)) if mm else None, 'sources': ['filmarks'],
     }
 
@@ -763,11 +770,15 @@ def merge(defaults, annict, filmarks):
                 for t, n in (v or {}).items():
                     c[t] = c.get(t, 0) + n
                 r['counts'] = c
+            elif k == 'image':
+                # https だけ通す（http は混在コンテンツでブロックされて出ない）。
+                # 上書きはしない。Annict（先）が https で埋まっていれば Filmarks（後）より優先される
+                if https_only(v) and not r.get('image'):
+                    r['image'] = v
             elif v not in (None, '', []) and r.get(k) in (None, '', []):
                 r[k] = v
             elif k in ('score', 'reviews', 'watchers', 'filmarks_url', 'vod') and v not in (None, '', []):
                 r[k] = v   # 取ってきた数字は、手元の空欄より新しい
-            # image は上書きしない。Annict（先）が埋まっていれば Filmarks（後）より優先される
         return r
 
     for x in defaults:
