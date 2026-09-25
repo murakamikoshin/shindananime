@@ -60,6 +60,8 @@ class FakeFilmarks:
                         '<url><loc>https://filmarks.com/movies/1</loc></url></urlset>')
         if url.endswith('sitemap_movies.xml'):
             return Resp('<urlset><url><loc>https://filmarks.com/movies/2</loc></url></urlset>')
+        if '/search/animes?q=' in url:
+            return Resp('<a href="/animes/10/20?mark_id=1">進撃の巨人</a><a href="/animes/11/21">x</a>')
         if url.endswith('/animes/10/20'):
             return Resp(DETAIL.format(n=10, title='進撃の巨人', score='4.3', count='123,456', year=2013,
                                       syn='壁の外の巨人と戦う。'))
@@ -166,6 +168,10 @@ class FilmarksTest(unittest.TestCase):
             b.time.sleep = b_sleep
         self.assertEqual(list(b.load_store(self.store)), ['https://filmarks.com/animes/10/20'],
                          '429 で止まっても、それまでの分は残る')
+
+    def test_probe_by_title(self):
+        f = self.fetcher(FakeFilmarks())
+        self.assertEqual(b.find_filmarks_url(f, '進撃の巨人'), 'https://filmarks.com/animes/10/20')
 
     def test_min_sleep(self):
         self.assertEqual(b.Fetcher(sleep=0.1, session=FakeFilmarks()).sleep, 1.5)

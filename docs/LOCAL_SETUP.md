@@ -94,7 +94,8 @@ scrape.do のトークンが本当に通るかは、次の 4 で 1 枚取って�
 
 Filmarks の画面の作りは、こちらでは確かめられていない。先に 1 枚読んで、項目が取れるか見る。
 
-    python3 build_anime_db.py --probe https://filmarks.com/animes/<シリーズ>/<シーズン>
+    python3 build_anime_db.py --probe 葬送のフリーレン        # 作品名で OK（Filmarks で検索して最初の作品を見る）
+    python3 build_anime_db.py --probe https://filmarks.com/animes/<数字>/<数字>   # アドレスでも OK
 
 最後の行が「読めなかった項目: なし」ならよい。何か欠けていたら、Claude Code にこう頼む:
 

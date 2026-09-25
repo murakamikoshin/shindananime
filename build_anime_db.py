@@ -943,6 +943,19 @@ def check_env(session=None):
     return ok
 
 
+def find_filmarks_url(f, title):
+    """Filmarks で作品名を検索して、最初に出てきたアニメ作品ページの URL を返す"""
+    search = f'{FM}/search/animes?q={quote(title)}'
+    if not f.allowed(search):
+        log('robots.txt で止められている / 読めない: ' + search)
+        return None
+    text, status = f.get(search, fresh=True)
+    for href in re.findall(r'href="(/animes/\d+/\d+)/?[^"]*"', text):
+        return urljoin(FM, href)
+    log(f'検索で作品ページが見つからなかった（{status}）: {search}')
+    return None
+
+
 def main(argv=None):
     loaded = load_dotenv()
     if loaded:
@@ -966,7 +979,9 @@ def main(argv=None):
     ap.add_argument('--limit', type=int, default=None, help='取る数の上限（試す時に）')
     ap.add_argument('--sleep', type=float, default=1.5, help='Filmarks の間隔（秒。1.5 より短くはならない）')
     ap.add_argument('--min-info', type=float, default=0.25, help='軸を決める手がかりがこれより少ない作品は落とす')
-    ap.add_argument('--probe', metavar='URL', help='Filmarks の作品ページ 1 枚だけ取って、読めた中身を見せる（何も書かない）')
+    ap.add_argument('--probe', metavar='URL か 作品名',
+                    help='Filmarks の作品ページ 1 枚だけ取って、読めた中身を見せる（何も書かない）。'
+                         '作品名を渡すと、Filmarks で検索して最初に出た作品を見る')
     ap.add_argument('--check-env', action='store_true', help='トークンが入っているか確かめる（値は出さない）')
     args = ap.parse_args(argv)
 
@@ -975,11 +990,17 @@ def main(argv=None):
 
     if args.probe:
         f = Fetcher(args.sleep, os.environ.get('SCRAPEDO_TOKEN'))
-        if not f.allowed(args.probe):
+        url = args.probe
+        if not url.startswith('http'):
+            url = find_filmarks_url(f, url)
+            if not url:
+                return 1
+        if not f.allowed(url):
             log('robots.txt で止められている / 読めない')
             return 1
-        text, status = f.get(args.probe, fresh=True)
-        item = parse_filmarks(text, args.probe) if status == 200 else None
+        text, status = f.get(url, fresh=True)
+        log(f'見たページ: {url}（{status}）')
+        item = parse_filmarks(text, url) if status == 200 else None
         print(json.dumps({'status': status, 'parsed': item, 'sitemaps': f.sitemaps(FM)},
                          ensure_ascii=False, indent=1))
         missing = [k for k in ('title', 'score', 'reviews', 'synopsis', 'year') if not (item or {}).get(k)]
