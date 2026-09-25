@@ -10,7 +10,7 @@ export const AXES = [
   { key: 'mood', label: '後味・刺激', pos: 'D', neg: 'H', posName: 'ダーク', negName: 'ハッピー' },
   { key: 'structure', label: '構成・テンポ', pos: 'C', neg: 'S', posName: '伏線・考察', negName: 'テンポ・勢い' },
   { key: 'taste', label: 'サブテイスト', pos: 'P', neg: 'A', posName: '心理戦', negName: 'アクション' },
-  { key: 'visual', label: '視覚・フェチ', pos: 'V', neg: 'ST', posName: '映像美', negName: 'ストーリー' },
+  { key: 'visual', label: '視覚・フェチ', pos: 'V', neg: 'T', posName: '映像美', negName: 'ストーリー' },
   { key: 'watch', label: '視聴スタイル', pos: 'M', neg: 'L', posName: '熟読・考察', negName: 'サクッと' },
 ];
 
@@ -123,13 +123,13 @@ export function typeCode(u) {
 /* 二つ名。決め打ちの 4 つ以外は、3 つの部品を組み合わせて 64 通り作る */
 const FIXED = {
   'RDCP-VM': '深淵を覗く考察コレクター',
-  'FHSA-STL': '脳汁全開の爽快エンタメハンター',
+  'FHSA-TL': '脳汁全開の爽快エンタメハンター',
   'FDCA-VM': '異世界を旅するロマン追及者',
-  'RHSP-STL': '現実逃避のライトファン',
+  'RHSP-TL': '現実逃避のライトファン',
 };
 const PART_WORLD_MOOD = { RD: '深淵を覗く', RH: '日常を愛する', FD: '絶望の異界を征く', FH: '異世界を駆ける' };
 const PART_STRUCT_TASTE = { CP: '考察', CA: '伏線バトル', SP: '直感ドラマ', SA: '爽快エンタメ' };
-const PART_VISUAL_WATCH = { VM: 'コレクター', VL: 'ハンター', STM: 'アナリスト', STL: 'ランナー' };
+const PART_VISUAL_WATCH = { VM: 'コレクター', VL: 'ハンター', TM: 'アナリスト', TL: 'ランナー' };
 
 export function nickname(u) {
   const code = typeCode(u);
@@ -144,7 +144,7 @@ const DESC = {
   D: '救いのない展開ほど記憶に残る', H: '逆転と大団円で満たされたい',
   C: '伏線を拾って考察するのが楽しい', S: '勢いとテンポで一気に持っていかれたい',
   P: '読み合いと行間のドラマが好き', A: '作画解放と迫力のバトルが好き',
-  V: '映像と演出のセンスでハマる', ST: '脚本とストーリーの面白さで選ぶ',
+  V: '映像と演出のセンスでハマる', T: '脚本とストーリーの面白さで選ぶ',
   M: '一話ずつ噛み締めて、考察まで読み漁る', L: '面白ければ一気見して、次の作品へ',
 };
 const WHY = {
@@ -152,7 +152,7 @@ const WHY = {
   D: '容赦のない展開と重い余韻', H: '最後に報われるカタルシス',
   C: '伏線と考察しがいのある構成', S: '一話目から掴んでくるテンポ',
   P: '読み合いと行間のドラマ', A: '熱量と迫力のある見せ場',
-  V: '何度も見返したくなる映像と演出', ST: '先が気になる脚本の強さ',
+  V: '何度も見返したくなる映像と演出', T: '先が気になる脚本の強さ',
   M: 'じっくり向き合うほど味が出る深さ', L: '気軽に一気見できる軽やかさ',
 };
 

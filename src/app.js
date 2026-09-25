@@ -72,11 +72,13 @@ function answer(v) {
 /* ------------------------------------------------------------ 軸のバー */
 function axisRow(a, value) {
   const row = el('div');
-  const head = el('div', 'flex justify-between text-xs font-bold');
+  /* flex + justify-between だと、左右のラベルの文字数が違う時に真ん中のラベルが
+     バーの中心からズレる。3等分グリッドで確実に中央に揃える */
+  const head = el('div', 'grid grid-cols-3 text-xs font-bold');
   head.append(
-    el('span', value < 0 ? 'text-white' : 'text-mute', `${a.neg} ${a.negName}`),
-    el('span', 'text-mute', a.label),
-    el('span', value >= 0 ? 'text-white' : 'text-mute', `${a.posName} ${a.pos}`),
+    el('span', `text-left ${value < 0 ? 'text-white' : 'text-mute'}`, `${a.neg} ${a.negName}`),
+    el('span', 'text-center text-mute', a.label),
+    el('span', `text-right ${value >= 0 ? 'text-white' : 'text-mute'}`, `${a.posName} ${a.pos}`),
   );
   const track = el('div', 'axis-track mt-1.5');
   const fill = el('div', 'axis-fill');

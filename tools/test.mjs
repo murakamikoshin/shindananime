@@ -29,20 +29,21 @@ ok(new Set(db.works.map((w) => w.id)).size === db.works.length, 'id が重なら
 /* タイプコード */
 const all = (v) => profile(questions, questions.map(() => v));
 ok(typeCode(all(1)) === 'RDCP-VM', '全部 A → RDCP-VM');
-ok(typeCode(all(-1)) === 'FHSA-STL', '全部 B → FHSA-STL');
+ok(typeCode(all(-1)) === 'FHSA-TL', '全部 B → FHSA-TL');
+ok(typeCode(all(-1)).split('-').map((s) => s.length).join(',') === '4,2', 'どの軸も1文字（4文字-2文字）');
 ok(nickname(all(1)) === '深淵を覗く考察コレクター', 'RDCP-VM の二つ名');
-ok(nickname(all(-1)) === '脳汁全開の爽快エンタメハンター', 'FHSA-STL の二つ名');
+ok(nickname(all(-1)) === '脳汁全開の爽快エンタメハンター', 'FHSA-TL の二つ名');
 const per = (o) => questions.map((q) => o[q.axis] ?? 0);  // era も o.era で指定できる
 const u = (o) => profile(questions, per(o));
 ok(nickname(u({ world: -1, mood: 1, structure: 1, taste: -1, visual: 1, watch: 1 })) === '異世界を旅するロマン追及者', 'FDCA-VM');
-ok(nickname(u({ world: 1, mood: -1, structure: -1, taste: 1, visual: -1, watch: -1 })) === '現実逃避のライトファン', 'RHSP-STL');
+ok(nickname(u({ world: 1, mood: -1, structure: -1, taste: 1, visual: -1, watch: -1 })) === '現実逃避のライトファン', 'RHSP-TL');
 
 /* 64 通りすべてに、別々の二つ名が付く */
 const names = new Set();
 for (let m = 0; m < 64; m++) {
   const v = AXES.map((_, i) => ((m >> i) & 1 ? 1 : -1));
   names.add(nickname(v));
-  ok(/^[RF][DH][CS][PA]-(V|ST)[ML]$/.test(typeCode(v)), 'コードの形 ' + typeCode(v));
+  ok(/^[RF][DH][CS][PA]-[VT][ML]$/.test(typeCode(v)), 'コードの形 ' + typeCode(v));
 }
 ok(names.size === 64, `二つ名は 64 通り別々（いま ${names.size}）`);
 

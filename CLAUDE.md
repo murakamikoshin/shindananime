@@ -63,6 +63,9 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - バグ: DMM TV の検索URL（`/vod/search/`）が404になっていた（DMM TV 側の変更）。実際にブラウザで確かめて `/vod/list/` に直した（2026-09-25、`src/config.js`）
 - 質問画面で、問題文・選択肢の文字数によってボタンの位置がズレるのがストレスという指摘 → `#qtext` と A/B の選択肢ボタンに `min-h` を付けて、どの質問でも下のボタンの位置が揃うようにした（実際に最長・最短の質問で確認済み。2026-09-25、`src/index.html`）
 - バグ: 「アルプスの少女ハイジ」など、画像URLが `http://` の作品が出ない。https のこのアプリから混在コンテンツでブロックされていた（`heidi.ne.jp` は証明書も無い）。`https_only()` を作り、Annict・Filmarks 両方の画像取得と `merge()` の image 優先ロジックに適用。http の画像は「無い」扱いにして、後から来る https（大抵 Filmarks の CloudFront）で埋まるようにした。テストの `image: 'an.jpg'` のような作り物も https URL に直した（2026-09-25、`build_anime_db.py`）
+- バグ: 「ゲボイデ＝ボイデ」「ぷれぷれぷれあです」など、URLはhttpsでも実物の絵ではない画像（Filmarks自身の「画像が無い時の仮の絵」＝`placehold`、公式サイト共通の汎用OGP画像＝`default-og-image`）が出ていた。`BAD_IMAGE_HINTS` で弾くようにした（2026-09-25、`build_anime_db.py`）。ネットワークでURLの生死を確かめる仕組みはまだ無いので、既知のパターン以外の壊れたリンクは今後も見つかり次第ここに足す
+- 結果画面の軸バーの中央の目印線が実際の中心から1pxズレていた（`transform: translateX(-50%)` が無かった）のと、左右のラベルの文字数が違うと真ん中のラベル（「世界観」など）が中心からズレる作り（flex justify-between）だったのを直した。ラベルは3等分グリッドに変更（2026-09-25、`src/styles.css`・`src/app.js`）
+- 視覚軸だけ負の側が `ST`（2文字）で他の軸と揃っていなかったのを `T`（Tale）に統一。`FHSA-STL`→`FHSA-TL`、`RHSP-STL`→`RHSP-TL` など、二つ名の決め打ちコードやテストの正規表現も合わせて直した（2026-09-25、`src/logic.js`）
 
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束

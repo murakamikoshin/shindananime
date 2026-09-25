@@ -351,10 +351,23 @@ class Fetcher:
 # ---------------------------------------------------------------- Annict
 
 
+BAD_IMAGE_HINTS = (
+    'placehold',          # Filmarks 自身の「画像が無い時の仮の絵」（例: ぷれぷれぷれあです）
+    'default-og-image',   # 公式サイト共通の汎用絵（実在しない絵の時がある。例: ゲボイデ＝ボイデ）
+    'default_og_image',
+    'no-image', 'noimage',
+)
+
+
 def https_only(url):
     """http:// の画像は、こちら（https）のページからだと混在コンテンツで
-    ブロックされて出ない（例: アルプスの少女ハイジの公式サイト）。https だけ通す"""
-    return url if url and url.startswith('https://') else None
+    ブロックされて出ない（例: アルプスの少女ハイジの公式サイト）。https だけ通す。
+    実物の絵ではない汎用の仮画像（BAD_IMAGE_HINTS）も弾く"""
+    if not url or not url.startswith('https://'):
+        return None
+    if any(h in url for h in BAD_IMAGE_HINTS):
+        return None
+    return url
 
 
 ANNICT_GQL = 'https://api.annict.com/graphql'
