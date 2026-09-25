@@ -26,19 +26,20 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 
 終わったこと
 - アプリ本体（src/）: 全50問（基本20問＋好みの要素30問、続けて1回で聞く）、6 軸のタイプコード、運命の1作＋次点2作。検査は `npm run check` で全部通る
-- Annict: 作品一覧 15,971 作を `data/annict_works.jsonl` に取った（まだ push していない）
-- Filmarks: `--probe https://filmarks.com/animes/3844/5200` で全項目が読めることを確かめた（★4.3・レビュー数・年・あらすじ・制作会社・再生時間・配信）
-- 1. Annict のレビュー取得 … 完了（4,213 作に手がかりあり。`data/annict_reviews.jsonl`）
-- 2. Filmarks 30 作の中身確認 … 完了（★・レビュー数・年・あらすじ・制作会社・配信は良好。`minutes` の欠けは個別ページの実際の欠落で SEL の不具合ではない）
-- Fetcher を「まず直接、403/429/503 が続いたら scrape.do に切り替え」の作りに変更（前は `SCRAPEDO_TOKEN` があると全部 scrape.do 経由だった。クレジットの節約のため）。`tests/test_build.py` も合わせて直し、`npm run check` の Python 側は通った
-
-いま進めていること
-3. `caffeinate -i python3 build_anime_db.py --filmarks` を実行中（バックグラウンド。直接取得、ブロックされたら自動で scrape.do）。1 万ページ弱で約 3 時間。止まっても同じコマンドで続きから
+- Annict: 作品一覧 15,971 作。Filmarks: 全 7,246 作（`--filmarks`、1万ページ弱を約4時間で完走。止まった/競合したのも下記の通り直した）
+- `all_anime_db.json`: 6,092 作（手がかり不足で落とした 10,085）。「手がかり不足」の中身を調べたら、
+  - ＜物語＞（全角<>）と〈物語〉（山括弧）のような、見た目が似ている別文字の括弧でタイトルが一致しない
+    バグを発見・修正（`norm()` に `<>〈〉《》` を追加。2026-09-25）
+  - 直せなかった分: 劇場版はFilmarksのmovieページを意図的にスクレイプしない設計（既存の仕様）、
+    Annict APIは`description`/`synopsis`フィールド自体を提供していない（API に直接聞いて確認済み）。
+    このため劇場版（エヴァンゲリヲン新劇場版など）やAnnict単独の一部作品は、今の仕組みではデータが薄いまま
+  - バグ: `load_store()` が `.splitlines()` を使っていて、あらすじ中の `U+2028`（特殊な改行文字）でも
+    分割してしまい JSON が壊れることがあった。`\n` だけで割るように直した（2026-09-25）
+- アプリ・中継worker・サイトの公開は都度デプロイ済み（`shindananime.pages.dev` → `koshinstudio.com/app/shindananime/`）
 
 次にやること（この順で）
-4. 最後の行の「手がかり不足で落とした N」を見る。多すぎたら TAG_WORDS や --min-info を見直す
-5. `npm run check` → `git add data/ all_anime_db.json` → commit → push
-6. 公開（README の「5. 出す」と koshin-studio の README の順番: アプリ → 中継 worker → サイト）
+1. `npm run check` → `git add data/ all_anime_db.json` → commit → push（データを初めて確定させる）
+2. ビルド → 本番デプロイ（`node tools/build.mjs && npx wrangler pages deploy dist --project-name shindananime --branch main`）
 
 決まっていないこと（持ち主に聞く）
 - `data/visual_studios.tsv` に足す会社（例: マッドハウス）

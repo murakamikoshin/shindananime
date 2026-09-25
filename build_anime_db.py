@@ -692,11 +692,13 @@ def parse_filmarks(html, url):
 
 
 def load_store(path):
-    """取ったものを読む。同じ URL が何度も出てきたら、あとの行が勝つ"""
+    """取ったものを読む。同じ URL が何度も出てきたら、あとの行が勝つ。
+    splitlines() だと、あらすじの中の U+2028 のような特殊な改行文字でも
+    割れて JSON が壊れるので、本当の改行（\\n）だけで割る"""
     out = {}
     path = Path(path)
     if path.exists():
-        for line in path.read_text(encoding='utf-8').splitlines():
+        for line in path.read_text(encoding='utf-8').split('\n'):
             if line.strip():
                 r = json.loads(line)
                 out[r.get('filmarks_url') or r.get('annict_id') or r['title']] = r
@@ -752,8 +754,11 @@ def _fetch_each(f, urls, fresh, sink):
 
 
 def norm(title):
+    # ＜物語＞（Annict、全角の <>）と 〈物語〉（Filmarks、日本語の山括弧）は
+    # 見た目は似ているが別の文字。NFKC は ＜＞ を <> にはするが 〈〉 はそのまま
+    # なので、両方まとめて外さないと同じ作品なのにマッチしない
     t = unicodedata.normalize('NFKC', title or '').lower()
-    return re.sub(r'[\s・:：!！?？「」『』【】()（）\[\]☆★♪〜~\-‐―_.,、。/／\'"]', '', t)
+    return re.sub(r'[\s・:：!！?？「」『』【】()（）\[\]<>〈〉《》☆★♪〜~\-‐―_.,、。/／\'"]', '', t)
 
 
 def merge(defaults, annict, filmarks):
