@@ -1,0 +1,8 @@
+# このアプリの Pages（shindananime.pages.dev）に付くヘッダ。
+# koshinstudio.com/app/shindananime/ は worker が中継するので、これもそのまま届く
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Robots-Tag: noindex, follow
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+  Cache-Control: public, max-age=0, must-revalidate

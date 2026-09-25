@@ -1,0 +1,15 @@
+{
+  "name": "shindananime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "data": "python3 scrape_filmarks.py",
+    "build": "node tools/build.mjs",
+    "test": "node tools/test.mjs",
+    "check": "node tools/build.mjs && node tools/test.mjs && node tools/e2e.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.0",
+    "tailwindcss": "^4.1.0"
+  }
+}

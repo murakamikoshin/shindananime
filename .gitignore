@@ -1,0 +1,7 @@
+node_modules
+dist
+.wrangler/
+__pycache__/
+.DS_Store
+store/*.png
+!store/cover-square-800x800.png

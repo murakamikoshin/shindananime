@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>神アニメ診断 — 18問でわかる、あなたに刺さる3作 | Koshin Studio</title>
+<meta name="description" content="18の質問から、世界観・後味・構成・人間関係・テイスト・視聴スタイルの6つの軸であなたの好みを割り出し、いちばん刺さる神アニメを3つ選びます。">
+<!-- 検索に出すのは koshinstudio.com/works/shindananime/ の方。実物は拾わせない -->
+<meta name="robots" content="noindex, follow">
+<meta property="og:title" content="神アニメ診断">
+<meta property="og:description" content="18問で、あなたに一番刺さる神アニメを3つ。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://koshinstudio.com/app/shindananime/">
+<meta property="og:image" content="https://koshinstudio.com/assets/og/og_works_shindananime.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#070c17">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body class="glow min-h-dvh text-slate-100 font-sans antialiased">
+
+<div class="mx-auto flex min-h-dvh max-w-xl flex-col px-4 pb-10 pt-4 sm:px-6">
+
+  <header class="flex items-center justify-between py-2 text-sm">
+    <a href="https://koshinstudio.com/works/shindananime/" class="font-bold tracking-wide text-slate-200 hover:text-white">神アニメ診断</a>
+    <a href="https://koshinstudio.com/" class="text-mute hover:text-white">Koshin Studio</a>
+  </header>
+
+  <noscript>
+    <p class="mt-10 rounded-xl border border-line bg-panel p-5 leading-relaxed">この診断は JavaScript で動いています。お手数ですが、有効にしてから開き直してください。</p>
+  </noscript>
+
+  <!-- 1. はじめ -->
+  <main id="intro" data-screen class="flex flex-1 flex-col justify-center py-8">
+    <p class="text-sm font-bold tracking-[.3em] text-hot">ANIME TYPE DIAGNOSIS</p>
+    <h1 class="mt-3 text-4xl font-black leading-tight sm:text-5xl">
+      あなたに一番<br><span class="grad-text">刺さる神アニメ</span>を<br>3つだけ選びます。
+    </h1>
+    <p class="mt-5 leading-relaxed text-slate-300">
+      全18問・約3分。<br>
+      <b class="text-white">世界観・後味・構成・人間関係・テイスト・視聴スタイル</b>の6つの軸で好みを細かく割り出し、
+      「ダーク好き」の中でも頭脳戦派か、愛憎劇派かまで分けて選びます。
+    </p>
+    <ul class="mt-6 grid grid-cols-3 gap-2 text-center text-xs text-mute sm:grid-cols-6" aria-label="6つの軸">
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">R/F</b>世界観</li>
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">D/H</b>後味</li>
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">C/S</b>構成</li>
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">G/I</b>関係</li>
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">P/A</b>テイスト</li>
+      <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">V/L</b>視聴</li>
+    </ul>
+    <button id="start" type="button" class="mt-8 w-full rounded-2xl bg-gradient-to-r from-hot to-cool px-6 py-4 text-lg font-black text-white shadow-lg shadow-hot/20 transition hover:brightness-110 active:scale-[.99] disabled:opacity-50" disabled>
+      読み込み中…
+    </button>
+    <p class="mt-4 text-center text-xs text-mute">回答はこの端末の中だけで計算し、どこにも送りません。</p>
+  </main>
+
+  <!-- 2. 質問 -->
+  <main id="quiz" data-screen hidden class="flex flex-1 flex-col py-4">
+    <div class="flex items-center gap-3 text-sm">
+      <button id="back" type="button" class="rounded-lg border border-line px-3 py-1.5 text-mute hover:text-white disabled:opacity-30" aria-label="ひとつ前の質問へ">← 戻る</button>
+      <div class="flex-1">
+        <div class="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuemin="0" aria-valuemax="18" id="progress">
+          <div id="progress-fill" class="h-full rounded-full bg-gradient-to-r from-hot to-cool transition-all duration-300" style="width:0"></div>
+        </div>
+      </div>
+      <span id="count" class="w-14 text-right tabular-nums text-mute">1 / 18</span>
+    </div>
+
+    <div id="qbox" class="pop mt-8">
+      <p id="qaxis" class="inline-block rounded-full border border-line px-3 py-1 text-xs font-bold text-sun"></p>
+      <h2 id="qtext" class="mt-4 text-2xl font-black leading-snug" tabindex="-1"></h2>
+
+      <div class="mt-6 grid gap-3">
+        <button type="button" data-v="1" class="choice group rounded-2xl border-2 border-line bg-panel p-5 text-left transition hover:border-hot focus-visible:border-hot active:scale-[.99]">
+          <span class="text-xs font-black tracking-widest text-hot">A</span>
+          <span id="qa" class="mt-1 block text-lg font-bold leading-relaxed"></span>
+        </button>
+        <button type="button" data-v="-1" class="choice group rounded-2xl border-2 border-line bg-panel p-5 text-left transition hover:border-cool focus-visible:border-cool active:scale-[.99]">
+          <span class="text-xs font-black tracking-widest text-cool">B</span>
+          <span id="qb" class="mt-1 block text-lg font-bold leading-relaxed"></span>
+        </button>
+      </div>
+
+      <div class="mt-4 grid grid-cols-3 gap-2 text-sm">
+        <button type="button" data-v="0.5" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-hot hover:text-white">どちらかと<br>いえば A</button>
+        <button type="button" data-v="0" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-sun hover:text-white">どちらとも<br>いえない</button>
+        <button type="button" data-v="-0.5" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-cool hover:text-white">どちらかと<br>いえば B</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- 3. 解析中 -->
+  <main id="loading" data-screen hidden class="flex flex-1 flex-col justify-center py-8" aria-live="polite">
+    <div class="flex items-center gap-3">
+      <span class="spin inline-block h-6 w-6 rounded-full border-4 border-line border-t-hot" aria-hidden="true"></span>
+      <p class="text-xl font-black">あなたの好みを解析中…</p>
+    </div>
+    <p id="loading-msg" class="mt-3 min-h-6 text-sm text-mute"></p>
+    <div id="loading-axes" class="mt-8 grid gap-4"></div>
+    <aside id="loading-pr" hidden class="mt-10 rounded-2xl border border-line bg-panel p-4 text-sm">
+      <span class="rounded bg-line px-1.5 py-0.5 text-[11px] font-bold text-mute" data-pr-label>PR</span>
+      <a data-pr-link class="mt-2 block" rel="sponsored noopener" target="_blank">
+        <b data-pr-title class="block text-base text-white"></b>
+        <span data-pr-text class="mt-1 block text-slate-300"></span>
+      </a>
+    </aside>
+  </main>
+
+  <!-- 4. 結果 -->
+  <main id="result" data-screen hidden class="flex-1 py-4">
+    <section class="pop rounded-3xl border border-line bg-panel/80 p-5 sm:p-6">
+      <p class="text-xs font-bold tracking-[.3em] text-mute">YOUR TYPE</p>
+      <p id="type-code" class="mt-2 font-black tracking-[.25em] text-sun text-3xl"></p>
+      <h1 id="type-name" class="mt-1 text-2xl font-black leading-snug sm:text-3xl"></h1>
+      <p id="type-badge" class="mt-2 inline-block rounded-full bg-hot/15 px-3 py-1 text-xs font-bold text-hot"></p>
+      <ul id="type-desc" class="mt-4 grid gap-1 text-sm text-slate-300"></ul>
+      <div id="result-axes" class="mt-6 grid gap-4"></div>
+    </section>
+
+    <h2 class="mt-10 text-xl font-black">あなたに刺さる神アニメ <span class="grad-text">3選</span></h2>
+    <p class="mt-1 text-xs text-mute">見たことがある作品は「見た」を押すと、次に合う作品に差し替えます。</p>
+    <ol id="picks" class="mt-4 grid gap-5"></ol>
+
+    <!-- 広告。config.js で有効にした時だけ中身が入る -->
+    <aside id="ad-result" hidden class="mt-10">
+      <p class="mb-1 text-center text-[11px] text-mute">スポンサーリンク</p>
+      <div data-ad class="min-h-[100px]"></div>
+    </aside>
+
+    <section class="mt-10 grid gap-3">
+      <a id="share-x" target="_blank" rel="noopener" class="rounded-2xl bg-white px-6 py-4 text-center text-lg font-black text-ink hover:brightness-95">結果を X でシェア</a>
+      <button id="share-native" type="button" hidden class="rounded-2xl border border-line px-6 py-3 font-bold hover:border-white">ほかのアプリで送る</button>
+      <button id="retry" type="button" class="rounded-2xl border border-line px-6 py-3 font-bold text-slate-300 hover:border-white hover:text-white">もう一度診断する</button>
+    </section>
+
+    <footer class="mt-10 grid gap-2 border-t border-line pt-5 text-xs leading-relaxed text-mute">
+      <p id="note-affiliate" hidden>※ 配信サービスへのリンクの一部はアフィリエイトリンク（PR）です。リンク先で契約されると、当サイトに紹介料が入ることがあります。おすすめの選び方には影響しません。</p>
+      <p>※ 配信状況は変わります。見られるかどうかは、各サービスでご確認ください。</p>
+      <p id="note-source"></p>
+      <p>作品名・スコアは各権利者および Filmarks に帰属します。<a class="underline hover:text-white" href="https://koshinstudio.com/privacy/">あつかい（プライバシー）</a></p>
+    </footer>
+  </main>
+
+  <main id="error" data-screen hidden class="flex flex-1 flex-col justify-center py-8">
+    <p class="text-xl font-black">作品のデータが読み込めませんでした。</p>
+    <p class="mt-2 text-slate-300">通信の具合を確かめて、もう一度開いてください。</p>
+    <button type="button" onclick="location.reload()" class="mt-6 rounded-2xl border border-line px-6 py-3 font-bold">読み込み直す</button>
+  </main>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
