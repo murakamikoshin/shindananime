@@ -72,6 +72,8 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - 結果を「ほかのアプリで送る」時にタイプしか伝わらない指摘 → TOP3（運命の1作＋次点2作）をまとめた1枚の画像を作って共有できるようにした（`src/app.js` の `buildShareImage`。1080×1350、type code・二つ名・3作のタイトルと適合度・URLを1枚に）。`navigator.canShare({files})` があれば画像をアプリ間共有、無ければダウンロードに逃がす。X 共有・ほかのアプリで送るの文面にも運命の1作のタイトルと適合度を入れた（`CONFIG.shareText` に `{title}`/`{match}` を追加）。作品のカバー画像は CORS 許可（Access-Control-Allow-Origin）が無いホストがほとんどで canvas に読み込めないため、`crossOrigin='anonymous'` で読めた時だけ使い、読めなければ（今のところ常に）カード同様のグラデーションに逃がす仕様にした（2026-09-25）
 - バグ: 結果カード・共有画像の作品画像に Filmarks 自身の「F」ロゴが大きく入っていることが多い → 原因は Filmarks の `og:image`（SNS共有用の240×240正方形サムネ）が、縦長のポスターを正方形に収める時の余白を自社ロゴで埋めているため。ページの JSON-LD（`ld+json` の `image.url`、260×364でポスター比率そのまま・ロゴ無し）を優先して使うように `parse_filmarks` を直した（`_ld_image()`。JSON-LD に無ければ今まで通り og:image に戻す）。実際に鬼滅・ワンパンマン・ハイジのページで確認済み（2026-09-25、`build_anime_db.py`）。既に取得済みの `data/filmarks_works.jsonl` の画像は古いog:image のままなので、直った画像を反映するには Filmarks を `--refresh-all` で取り直す必要がある（未実行。ページ取得数は前回と同じ約7,246件で3〜4時間かかる見込み）
 
+- SEO: 検索に出す本体は `koshinstudio.com/works/shindananime/`（koshin-studio リポジトリ側。中身・データ・アセットは別途そちらで作成・コミット）で、アプリ自身（このリポジトリ）は今まで通り `noindex, follow`。アプリ側は OGP を少し補強（`og:site_name`/`og:locale`/`og:image` の width・height、紹介ページを指す `canonical`）した（2026-09-25、`src/index.html`）
+
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束
 - Python は Mac 標準の 3.9。ターミナルを開いたら `source .venv/bin/activate` を先に
