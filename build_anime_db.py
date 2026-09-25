@@ -13,8 +13,8 @@
     python3 build_anime_db.py --filmarks
     SCRAPEDO_TOKEN=xxxx python3 build_anime_db.py --filmarks   # scrape.do を通す
 
-    # 全部まとめて
-    ANNICT_TOKEN=... SCRAPEDO_TOKEN=... python3 build_anime_db.py --annict --filmarks
+    # Annict も足す（任意。Filmarks に無い作品と「見ている人の数」が増える）
+    python3 build_anime_db.py --annict --filmarks
 
     # 試しに少しだけ（本番の前に必ず）
     python3 build_anime_db.py --probe https://filmarks.com/animes/<id>/<id>
@@ -692,10 +692,11 @@ def load_dotenv(path=HERE / '.env'):
 def check_env(session=None):
     """トークンが入っているか、Annict のトークンが通るかを見る。値そのものは出さない"""
     ok = True
-    for k in ('SCRAPEDO_TOKEN', 'ANNICT_TOKEN'):
+    for k, need in (('SCRAPEDO_TOKEN', 'Filmarks を scrape.do 経由で取る時'), ('ANNICT_TOKEN', '--annict を使う時だけ')):
         v = os.environ.get(k, '')
-        print(f'{k}: ' + (f'入っている（{len(v)} 文字・末尾 …{v[-4:]}）' if v else '入っていない'))
-        ok = ok and bool(v)
+        print(f'{k}: ' + (f'入っている（{len(v)} 文字・末尾 …{v[-4:]}）' if v else f'入っていない（要るのは {need}）'))
+    if not os.environ.get('SCRAPEDO_TOKEN'):
+        print('→ scrape.do を使わないなら、Filmarks に直接取りに行く')
     tok = os.environ.get('ANNICT_TOKEN')
     if tok:
         try:

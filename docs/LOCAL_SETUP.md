@@ -35,14 +35,15 @@
 
 ## 3. トークンを置く（git には入らない）
 
-使うトークンは 2 つ。どちらも**パスワードと同じ扱い**（人に見せない・チャットに貼らない・git に入れない）。
+使うのは scrape.do のトークンだけ。Annict は任意（Filmarks だけで診断は作れる。足すと Filmarks に無い作品と「見ている人の数」が増える）。
+トークンは**パスワードと同じ扱い**（人に見せない・チャットに貼らない・git に入れない）。
 
 ### 3-1. scrape.do のトークンを写す
 
 1. https://dashboard.scrape.do/ にログイン
 2. ダッシュボードの最初の画面に出ている **API Token**（長い英数字）の横のコピーを押す
 
-### 3-2. Annict のトークンを作る
+### 3-2. Annict のトークンを作る（任意。使わないなら飛ばす）
 
 1. https://annict.com/ にログイン（アカウントが無ければ作る。無料）
 2. 右上のアイコン →「設定」→ 左の「アプリ」、または直接 https://annict.com/settings/apps を開く
@@ -62,7 +63,7 @@ VS Code の左の一覧（エクスプローラー）で `.env.example` を右�
 `.env` を開いて、= の右に貼る。**引用符も空白も要らない**:
 
     SCRAPEDO_TOKEN=ここに scrape.do のトークン
-    ANNICT_TOKEN=ここに Annict のトークン
+    ANNICT_TOKEN=                              ← Annict を使わないなら空のまま
 
 保存する（Ctrl+S / ⌘S）。
 
@@ -109,10 +110,10 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 
 よさそうなら全部:
 
-    python3 build_anime_db.py --annict --filmarks
+    python3 build_anime_db.py --filmarks              # Annict も足すなら --annict を付ける
 
 - 1 ページ 1.5 秒。1 万ページで約 4 時間。**パソコンが眠らない設定にしておく**
-  （Mac: `caffeinate -i python3 build_anime_db.py --annict --filmarks`）
+  （Mac: `caffeinate -i python3 build_anime_db.py --filmarks`）
 - 止まっても、同じコマンドをもう一度打てば続きから（取った作品は飛ばす）
 - 429 / 503 が続いたら自分で止まる。少し時間をおいてから、もう一度
 
@@ -127,7 +128,7 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 
 ## 7. 毎期の追加（1 月・4 月・7 月・10 月）
 
-    python3 build_anime_db.py --annict --filmarks --refresh-since 2026
+    python3 build_anime_db.py --filmarks --refresh-since 2026
     npm run check && git add data/ all_anime_db.json && git commit -m "2026 年春の新作を足す" && git push
 
 - `--filmarks` は、取ったことのある作品を飛ばして新しいページだけ取る

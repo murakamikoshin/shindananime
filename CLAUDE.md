@@ -15,7 +15,7 @@
 ## よく使う
 
     python3 build_anime_db.py --probe <Filmarks の作品 URL>   # 1 枚だけ読んで確かめる
-    python3 build_anime_db.py --annict --filmarks             # 取る（続きから）
+    python3 build_anime_db.py --filmarks                      # 取る（続きから。Annict も足すなら --annict）
     npm run check                                             # 検査を全部
     npm run serve                                             # http://localhost:4600/app/shindananime/
 
