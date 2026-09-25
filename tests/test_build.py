@@ -398,12 +398,23 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(len(works), 3)
         shingeki = next(w for w in works if w['t'] == '進撃の巨人')
         self.assertEqual((shingeki['s'], shingeki['an'], shingeki['src']), (4.3, 7, 'adf'))
-        self.assertEqual(shingeki['img'], 'fm.jpg')
+        self.assertEqual(shingeki['img'], 'an.jpg', 'Annict の画像が Filmarks より優先される')
         other = next(w for w in works if w['t'] == '知らない作品')
+        self.assertEqual(other['img'], None, 'Annict に画像が無ければ Filmarks（image: None）のまま')
         self.assertLess(other['v'][0], 0, '異世界・転生・魔王 → F 側')
         self.assertLess(other['v'][1], 0, 'ギャグ・爽快 → H 側')
         empty = next(w for w in works if w['t'] == '手がかり無し')
         self.assertEqual(empty['i'], 0)
+
+    def test_image_falls_back_to_filmarks_when_annict_has_none(self):
+        an = [{'title': 'まだ知らないアニメ', 'year': 2024, 'media': 'TV', 'watchers': 100,
+               'annict_id': 99, 'image': None, 'sources': ['annict']}]
+        fm = [{'title': 'まだ知らないアニメ', 'year': 2024, 'score': 3.8, 'reviews': 900,
+               'synopsis': 's', 'counts': {}, 'vod': [], 'image': 'fm2.jpg',
+               'filmarks_url': 'https://filmarks.com/animes/11/21', 'series': 11, 'sources': ['filmarks']}]
+        works = b.finish(b.merge([], an, fm))
+        w = next(x for x in works if x['t'] == 'まだ知らないアニメ')
+        self.assertEqual(w['img'], 'fm2.jpg', 'Annict に画像が無ければ Filmarks で補う')
 
     def test_cli_default_only(self):
         with tempfile.TemporaryDirectory() as t:

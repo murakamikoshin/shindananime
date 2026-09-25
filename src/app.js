@@ -94,7 +94,7 @@ function axisRow(a, value) {
   track.append(fill);
   const pct = Math.round(50 + Math.abs(value) * 50);
   row.append(head, track, el('p', 'mt-1 text-right text-[11px] tabular-nums text-mute',
-    Math.abs(value) < 0.1 ? 'ほぼ半々' : `${value >= 0 ? a.pos : a.neg} 寄り ${pct}%`));
+    `${value >= 0 ? a.pos : a.neg} 寄り ${pct}%`));
   row.fill = () => {
     const w = Math.abs(value) * 50;
     fill.style.left = `${value >= 0 ? 50 : 50 - w}%`;
@@ -222,10 +222,7 @@ function renderResult() {
   requestAnimationFrame(() => requestAnimationFrame(() => axes.forEach((r) => r.fill())));
   setupShare(code, name);
 
-  const day = (META.generated_at || '').slice(0, 10);
-  $('note-source').textContent = META.from_filmarks
-    ? `※ ★は Filmarks のスコア（${day} 時点）。タイプと適合度は当サイト独自の計算です。`
-    : '※ スコアを取得できていない作品は、Filmarks のページへのリンクだけを出しています。タイプと適合度は当サイト独自の計算です。';
+  $('note-source').textContent = '※ タイプと適合度は当サイト独自の計算です。';
   $('note-affiliate').hidden = !CONFIG.vod.some((v) => v.url);
 }
 
@@ -264,8 +261,6 @@ function hue(s) {
   return h;
 }
 
-const filmarksUrl = (w) => w.fm || `https://filmarks.com/search/animes?q=${encodeURIComponent(w.t)}`;
-
 function card(c, i, big) {
   const w = c.work;
   const box = el('article', `pop overflow-hidden rounded-3xl border bg-panel ${big ? 'border-sun/60 shadow-2xl shadow-hot/20' : 'border-line'}`);
@@ -289,12 +284,6 @@ function card(c, i, big) {
   const meta = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-1 text-sm');
   const media = { TV: 'TVアニメ', MOVIE: '劇場版', OVA: 'OVA', WEB: '配信' }[w.m] || w.m;
   if (w.y) meta.append(el('span', 'text-mute', `${w.y}年・${media}`));
-  const fm = el('a', 'font-bold text-sun underline-offset-2 hover:underline');
-  fm.href = filmarksUrl(w);
-  fm.target = '_blank';
-  fm.rel = 'noopener';
-  fm.textContent = typeof w.s === 'number' ? `Filmarks ★${w.s.toFixed(1)}` : 'Filmarks でレビューを見る';
-  meta.append(fm);
   body.append(meta);
 
   if (w.syn) body.append(el('p', 'text-sm leading-relaxed text-slate-300', w.syn + (w.syn.length >= 110 ? '…' : '')));

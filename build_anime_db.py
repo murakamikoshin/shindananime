@@ -751,8 +751,9 @@ def merge(defaults, annict, filmarks):
                 r['counts'] = c
             elif v not in (None, '', []) and r.get(k) in (None, '', []):
                 r[k] = v
-            elif k in ('score', 'reviews', 'watchers', 'image', 'filmarks_url', 'vod') and v not in (None, '', []):
+            elif k in ('score', 'reviews', 'watchers', 'filmarks_url', 'vod') and v not in (None, '', []):
                 r[k] = v   # 取ってきた数字は、手元の空欄より新しい
+            # image は上書きしない。Annict（先）が埋まっていれば Filmarks（後）より優先される
         return r
 
     for x in defaults:

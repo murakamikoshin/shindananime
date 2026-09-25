@@ -16,13 +16,14 @@ export const CONFIG = {
      slots.top     … 結果画面のいちばん上
      slots.loading … 解析中の画面のまん中
      ※ 解析中の画面は中身が少なく、自動で移る画面なので、AdSense の
-       「コンテンツの無い画面への広告」に当たる恐れがある。審査前に
-       AdSense の方針を確かめ、心配なら loading は自前の PR 枠（loadingPr）にする。
+       「コンテンツの無い画面への広告」に当たる恐れがあったが、
+       持ち主がリスクを承知の上で本物の広告を出す判断をした（2026-09-25）。
+       loadingPr（自前 PR 枠）には切り替えない。
      ads.txt は koshinstudio.com の直下に置く（このアプリの Pages ではない） */
   ads: {
-    enabled: false,
-    client: '',                        // 'ca-pub-0000000000000000'
-    slots: { top: '', loading: '' },   // data-ad-slot
+    enabled: true,
+    client: 'ca-pub-3863314847163872',
+    slots: { top: '', loading: '' },   // data-ad-slot が決まったら入れる
     showPlaceholder: true,
   },
 
@@ -60,6 +61,8 @@ export const CONFIG = {
   shareText: '私のアニメ診断タイプは【{code}：{name}型】でした！あなたにぴったりの神アニメは…？',
   shareTags: ['アニメ診断', 'アニメ'],
 
-  /* 作品の画像を出すか。画像は作品の権利者のもの。使ってよいと確かめるまでは false */
-  showImages: false,
+  /* 作品の画像を出すか。img は Annict（公式サイトの OGP 画像）と Filmarks（og:image）から。
+     画像そのものは作品の権利者のものだが、どちらも元は作品の公式な販促画像で、
+     他所で使われる前提のもの。持ち主がリスクを承知の上で出す判断をした（2026-09-25） */
+  showImages: true,
 };

@@ -71,7 +71,7 @@
       <p id="qaxis" class="inline-block rounded-full border border-line px-3 py-1 text-xs font-bold text-sun"></p>
       <h2 id="qtext" class="mt-4 text-2xl font-black leading-snug" tabindex="-1"></h2>
 
-      <div class="mt-6 grid gap-3">
+      <div class="mt-6 grid grid-cols-2 gap-3">
         <button type="button" data-v="1" class="choice rounded-2xl border-2 border-line bg-panel p-5 text-left transition hover:border-hot focus-visible:border-hot active:scale-[.99]">
           <span class="text-xs font-black tracking-widest text-hot">A</span>
           <span id="qa" class="mt-1 block text-lg font-bold leading-relaxed"></span>
@@ -80,13 +80,11 @@
           <span class="text-xs font-black tracking-widest text-cool">B</span>
           <span id="qb" class="mt-1 block text-lg font-bold leading-relaxed"></span>
         </button>
+        <button type="button" data-v="0.5" class="choice rounded-xl border border-line px-2 py-3 text-sm text-slate-300 hover:border-hot hover:text-white">どちらかといえば A</button>
+        <button type="button" data-v="-0.5" class="choice rounded-xl border border-line px-2 py-3 text-sm text-slate-300 hover:border-cool hover:text-white">どちらかといえば B</button>
       </div>
 
-      <div class="mt-4 grid grid-cols-3 gap-2 text-sm">
-        <button type="button" data-v="0.5" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-hot hover:text-white">どちらかと<br>いえば A</button>
-        <button type="button" data-v="0" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-sun hover:text-white">どちらとも<br>いえない</button>
-        <button type="button" data-v="-0.5" class="choice rounded-xl border border-line px-2 py-3 text-slate-300 hover:border-cool hover:text-white">どちらかと<br>いえば B</button>
-      </div>
+      <button type="button" data-v="0" class="choice mt-3 w-full rounded-xl border border-line px-2 py-3 text-sm text-slate-300 hover:border-sun hover:text-white">どちらともいえない</button>
     </div>
   </main>
 
@@ -165,7 +163,7 @@
       <p id="note-affiliate" hidden>※ 配信サービスのボタンはアフィリエイトリンク（PR）です。リンク先で契約されると、当サイトに紹介料が入ることがあります。どの作品を選ぶかには影響しません。</p>
       <p>※ 無料体験の有無や期間、配信の有無は変わります。最新の条件は各サービスでご確認ください。</p>
       <p id="note-source"></p>
-      <p>作品名・スコアは各権利者および Filmarks・Annict に帰属します。<a class="underline hover:text-white" href="https://koshinstudio.com/privacy/">あつかい（プライバシー）</a></p>
+      <p>作品名・画像は各権利者に帰属します。<a class="underline hover:text-white" href="https://koshinstudio.com/privacy/">あつかい（プライバシー）</a></p>
     </footer>
   </main>
 

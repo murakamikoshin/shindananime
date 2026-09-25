@@ -42,8 +42,14 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 
 決まっていないこと（持ち主に聞く）
 - `data/visual_studios.tsv` に足す会社（例: マッドハウス）
-- `src/config.js` のアフィリエイトリンク・AdSense（解析中の枠は AdSense の方針に触れる恐れあり）
-- Filmarks の利用規約の確認
+
+解決したこと
+- Filmarks の利用規約・AdSense の「解析中画面」の方針 → 持ち主がリスクを承知の上で許容する判断（2026-09-25）。loading 枠も本物の広告にする（loadingPr には逃がさない）
+- AdSense: koshinstudio.com を AdSense for content として登録、`ads.txt` を本番に出した。サイト審査待ち。広告ユニット（`top`/`loading`）は審査が通ってから作る
+- Filmarks への外向きリンク（結果画面の「Filmarks でレビューを見る」ボタン）を削除。★スコアは「あくまで診断材料」として使うだけで、画面には一切出さない（2026-09-25、`src/app.js`）。footer の Filmarks・Annict という名前も、カードの「Filmarks ★」表示も削除済み。★は `quality()` の内部計算にだけ使う
+- 作品画像（Annict の公式サイト OGP 画像 / Filmarks の og:image）→ 持ち主がリスクを承知の上で出す判断（2026-09-25）。`showImages: true`。優先順位は Annict → 無ければ Filmarks（`build_anime_db.py` の `merge()`、`image` は上書きしない＝先勝ち）
+- 質問画面のボタン配置を直した。A/B の本回答と「どちらかといえば」がバラバラの並びだったのを、A 列・B 列で縦に揃えて「どちらともいえない」だけ下に独立させた（2026-09-25、`src/index.html`）
+- 結果画面の軸バーの「ほぼ半々」表示をやめた。常に「{勝った側} 寄り {%}」と言い切る（タイプコードの文字も元々「ちょうど0なら+側」で言い切る作りなので、それに揃えた）。質問数を増やして半々を減らす案は検討したが、しきい値の絶対値 0.1 が質問数のスケールに合わずバグる上、効果も薄い（3問→21問でも15.2%→6.0%止まり）ので却下（2026-09-25、`src/app.js` の `axisRow`）
 
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束
