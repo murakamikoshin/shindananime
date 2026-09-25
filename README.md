@@ -73,6 +73,14 @@
 Filmarks は回さず、Annict と手元の一覧だけで作る。Filmarks の HTML は予告なく変わる。
 取れなくなったら `SEL` と `FM_LIST_PATHS` を直す（`tests/test_build.py` の作り物の HTML も合わせる）。
 
+### 取ったものの置き場と、毎期の追加
+
+- Filmarks で取った作品は `data/filmarks_works.jsonl`、Annict は `data/annict_works.jsonl` に 1 行 1 作品で残る（git に入れる）
+- `--filmarks` を付けなくても、取ってある分は毎回 all_anime_db.json に入る
+- `--filmarks` は**取ったことのある作品を飛ばす**。毎期はこれで新作だけ取れる
+- `--refresh-since 2026` でその年以降の作品を取り直す（★の更新）。`--refresh-all` で全部
+- 手元で全部取る手順は **docs/LOCAL_SETUP.md**
+
 ### まとめ方
 
 - タイトル（記号・空白を落として比べる）が同じで、放送年が1年以内なら同じ作品として1行にまとめる

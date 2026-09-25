@@ -83,9 +83,16 @@ class FilmarksTest(unittest.TestCase):
     def fetcher(self, session, token=None):
         return FastFetcher(sleep=0, scrapedo_token=token, cache=self.tmp.name, session=session)
 
+    @property
+    def store(self):
+        return Path(self.tmp.name) / 'store.jsonl'
+
+    def crawl(self, session, **kw):
+        return b.fetch_filmarks(self.fetcher(session, kw.pop('token', None)), store=self.store, **kw)
+
     def test_sitemap_to_details(self):
         s = FakeFilmarks()
-        got = b.fetch_filmarks(self.fetcher(s))
+        got = self.crawl(s)
         self.assertEqual([g['title'] for g in got], ['進撃の巨人', 'まだ知らないアニメ'])
         a = got[0]
         self.assertEqual((a['score'], a['reviews'], a['year'], a['series']), (4.3, 123456, 2013, 10))
@@ -94,7 +101,7 @@ class FilmarksTest(unittest.TestCase):
 
     def test_scrapedo_wraps_every_request(self):
         s = FakeFilmarks()
-        b.fetch_filmarks(self.fetcher(s, token='TKN'))
+        self.crawl(s, token='TKN')
         self.assertTrue(s.asked)
         for u in s.asked:
             q = parse_qs(urlparse(u).query)
@@ -104,7 +111,7 @@ class FilmarksTest(unittest.TestCase):
 
     def test_robots_disallow_stops(self):
         s = FakeFilmarks(robots='User-agent: *\nDisallow: /\n')
-        self.assertEqual(b.fetch_filmarks(self.fetcher(s)), [])
+        self.assertEqual(self.crawl(s), [])
         self.assertEqual(len(s.asked), 1, 'robots.txt 以外は取りに行かない')
 
     def test_robots_unreadable_stops(self):
@@ -113,18 +120,52 @@ class FilmarksTest(unittest.TestCase):
                 self.asked.append(url)
                 raise ConnectionError('proxy')
         s = Down()
-        self.assertEqual(b.fetch_filmarks(self.fetcher(s)), [])
+        self.assertEqual(self.crawl(s), [])
         self.assertEqual(len(s.asked), 1)
 
     def test_cache_resumes(self):
         s = FakeFilmarks()
-        f = self.fetcher(s)
-        b.fetch_filmarks(f)
+        self.crawl(s)
         first = len(s.asked)
         s2 = FakeFilmarks()
-        b.fetch_filmarks(self.fetcher(s2))
+        self.crawl(s2)
         self.assertLess(len(s2.asked), first, '2 回目は取ったページを使い回す')
         self.assertFalse(any('/animes/' in u for u in s2.asked))
+
+    def test_store_and_skip(self):
+        self.crawl(FakeFilmarks())
+        stored = b.load_store(self.store)
+        self.assertEqual(len(stored), 2, '1 作取るごとに store に残る')
+        rec = stored['https://filmarks.com/animes/10/20']
+        self.assertNotIn('review_text', rec, 'レビュー本文そのものは残さない')
+        self.assertGreater(rec['counts'].get('伏線', 0), 0, '言葉の数は残す')
+        s = FakeFilmarks()
+        got = self.crawl(s, skip=frozenset(stored))
+        self.assertEqual(got, [], '取ったことのある作品は飛ばす')
+        self.assertFalse(any('/animes/' in u for u in s.asked))
+
+    def test_refresh_bypasses_cache(self):
+        self.crawl(FakeFilmarks())
+        stored = b.load_store(self.store)
+        s = FakeFilmarks()
+        got = self.crawl(s, skip=frozenset(stored), extra=['https://filmarks.com/animes/10/20'])
+        self.assertEqual([g['title'] for g in got], ['進撃の巨人'])
+        self.assertIn('https://filmarks.com/animes/10/20', s.asked, '取り直しは .cache を使わない')
+
+    def test_stop_keeps_what_was_taken(self):
+        class Dies(FakeFilmarks):
+            def get(self, url, timeout=None):
+                if url.endswith('/animes/11/21'):
+                    return Resp('', 429)
+                return super().get(url, timeout)
+        b_sleep = b.time.sleep
+        b.time.sleep = lambda x: None
+        try:
+            self.crawl(Dies())
+        finally:
+            b.time.sleep = b_sleep
+        self.assertEqual(list(b.load_store(self.store)), ['https://filmarks.com/animes/10/20'],
+                         '429 で止まっても、それまでの分は残る')
 
     def test_min_sleep(self):
         self.assertEqual(b.Fetcher(sleep=0.1, session=FakeFilmarks()).sleep, 1.5)
@@ -170,13 +211,13 @@ class MergeTest(unittest.TestCase):
         an = [{'title': '進撃の巨人', 'year': 2013, 'media': 'TV', 'watchers': 20000, 'annict_id': 7,
                'image': 'an.jpg', 'sources': ['annict']}]
         fm = [{'title': '進撃の巨人', 'year': 2013, 'score': 4.3, 'reviews': 100000, 'synopsis': 's',
-               'review_text': '', 'vod': ['unext'], 'image': 'fm.jpg', 'filmarks_url': 'https://filmarks.com/animes/1/2',
+               'counts': {}, 'vod': ['unext'], 'image': 'fm.jpg', 'filmarks_url': 'https://filmarks.com/animes/1/2',
                'series': 1, 'sources': ['filmarks']},
               {'title': '知らない作品', 'year': 2020, 'score': 3.5, 'reviews': 10,
-               'synopsis': '異世界に転生した少年が魔王を倒す冒険。爆笑のギャグ', 'review_text': '笑った 爽快',
+               'synopsis': '異世界に転生した少年が魔王を倒す冒険。爆笑のギャグ', 'counts': {'爽快': 3, 'ギャグ': 2},
                'vod': [], 'image': None, 'filmarks_url': 'https://filmarks.com/animes/3/4', 'series': 3,
                'sources': ['filmarks']},
-              {'title': '手がかり無し', 'year': 2020, 'synopsis': '', 'review_text': '', 'sources': ['filmarks']}]
+              {'title': '手がかり無し', 'year': 2020, 'synopsis': '', 'sources': ['filmarks']}]
         works = b.finish(b.merge(d, an, fm))
         self.assertEqual(len(works), 3)
         shingeki = next(w for w in works if w['t'] == '進撃の巨人')
@@ -191,7 +232,12 @@ class MergeTest(unittest.TestCase):
     def test_cli_default_only(self):
         with tempfile.TemporaryDirectory() as t:
             out = Path(t) / 'db.json'
-            b.main(['--out', str(out)])
+            saved = (b.FILMARKS_STORE, b.ANNICT_STORE)
+            b.FILMARKS_STORE, b.ANNICT_STORE = Path(t) / 'f.jsonl', Path(t) / 'a.jsonl'
+            try:
+                b.main(['--out', str(out)])
+            finally:
+                b.FILMARKS_STORE, b.ANNICT_STORE = saved
             data = json.loads(out.read_text())
             self.assertGreaterEqual(data['meta']['count'], 500)
             self.assertEqual(len(data['works'][0]['v']), 6)

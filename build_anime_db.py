@@ -16,8 +16,12 @@
     # 全部まとめて
     ANNICT_TOKEN=... SCRAPEDO_TOKEN=... python3 build_anime_db.py --annict --filmarks
 
-    # 試しに少しだけ
+    # 試しに少しだけ（本番の前に必ず）
+    python3 build_anime_db.py --probe https://filmarks.com/animes/<id>/<id>
     python3 build_anime_db.py --filmarks --limit 30
+
+    # 毎期の追加（取ったことのある作品は飛ばす。今年の作品は★を取り直す）
+    python3 build_anime_db.py --filmarks --refresh-since 2026
 
 流れ
   1. 手元の名作一覧（data/default_titles.tsv）を読む。軸はタグから計算
@@ -59,6 +63,9 @@ from urllib.parse import quote, urljoin, urlparse
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_TSV = HERE / 'data' / 'default_titles.tsv'
+# 取ったものの置き場。1 行 1 作品。git に入れる（何時間もかけて取ったものなので）
+FILMARKS_STORE = HERE / 'data' / 'filmarks_works.jsonl'
+ANNICT_STORE = HERE / 'data' / 'annict_works.jsonl'
 CACHE = HERE / '.cache'
 
 # ---------------------------------------------------------------- 軸
@@ -230,7 +237,7 @@ class Fetcher:
         if host not in self.robots:
             rp = urllib.robotparser.RobotFileParser()
             try:
-                text, status = self._get(host + '/robots.txt', use_cache=False)
+                text, status = self._get(host + '/robots.txt', read=False, write=False)
             except Exception as e:  # noqa: BLE001 — 何であれ「読めない」
                 log(f'{host}/robots.txt が読めない（{e.__class__.__name__}）。そこへは行かない')
                 self.robots[host] = None
@@ -248,9 +255,9 @@ class Fetcher:
         rp = self.robots.get(host)
         return list(rp.site_maps() or []) if rp else []
 
-    def _get(self, url, use_cache=True):
+    def _get(self, url, read=True, write=True):
         key = self._key(url)
-        if use_cache and key.exists():
+        if read and key.exists():
             return key.read_text(encoding='utf-8', errors='replace'), 200
         wait = self.last + self.sleep - time.monotonic()
         if wait > 0:
@@ -264,21 +271,22 @@ class Fetcher:
             if self.fails >= 3:
                 raise RuntimeError(f'{r.status_code} が続いた。ここで止める')
             time.sleep(30 * self.fails)
-            return self._get(url, use_cache)
+            return self._get(url, read, write)
         self.fails = 0
         body = r.content
         if url.endswith('.gz') or body[:2] == b'\x1f\x8b':
             body = gzip.decompress(body)
         text = body.decode(r.encoding or 'utf-8', errors='replace') if isinstance(body, bytes) else body
-        if r.status_code == 200 and use_cache:
+        if r.status_code == 200 and write:
             key.parent.mkdir(parents=True, exist_ok=True)
             key.write_text(text, encoding='utf-8')
         return text, r.status_code
 
-    def get(self, url):
+    def get(self, url, fresh=False):
+        """fresh=True なら .cache を見ずに取り直す（取ったものは .cache に書き直す）"""
         if not self.allowed(url):
             raise PermissionError('robots.txt で止められている: ' + url)
-        return self._get(url)
+        return self._get(url, read=not fresh)
 
 
 # ---------------------------------------------------------------- Annict
@@ -365,10 +373,11 @@ VOD_NAMES = {
 }
 
 
-def filmarks_urls(f: Fetcher, limit=None):
-    """Filmarks のアニメ作品ページを全部集める。Sitemap が先、一覧が後"""
+def filmarks_urls(f: Fetcher, limit=None, skip=frozenset()):
+    """Filmarks のアニメ作品ページを全部集める。Sitemap が先、一覧が後。
+    skip にある URL（もう取ったもの）は数えない"""
     urls = []
-    seen = set()
+    seen = set(skip)
 
     def add(u):
         u = u.split('?')[0].rstrip('/')
@@ -486,26 +495,52 @@ def parse_filmarks(html, url):
     mm = FM_DETAIL.match(url.rstrip('/'))
     return {
         'title': title, 'year': year, 'score': score, 'reviews': reviews,
-        'synopsis': synopsis, 'review_text': ' '.join(texts)[:20000],
+        'synopsis': synopsis,
+        # レビュー本文そのものは持たない（重い・他人の文章）。言葉の数だけ残す
+        'counts': text_tags(' '.join([title, synopsis] + texts)),
+        'fetched_at': dt.date.today().isoformat(),
         'vod': [k for k, names in VOD_NAMES.items() if any(n in vod_text for n in names)],
         'image': _meta(soup, 'og:image') or None, 'filmarks_url': url,
         'series': int(mm.group(1)) if mm else None, 'sources': ['filmarks'],
     }
 
 
-def fetch_filmarks(f: Fetcher, limit=None):
+def load_store(path):
+    """取ったものを読む。同じ URL が何度も出てきたら、あとの行が勝つ"""
+    out = {}
+    path = Path(path)
+    if path.exists():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[r.get('filmarks_url') or r.get('annict_id') or r['title']] = r
+    return out
+
+
+def fetch_filmarks(f: Fetcher, limit=None, store=FILMARKS_STORE, skip=frozenset(), extra=()):
+    """まだ取っていない作品ページを取る。1 作取るごとに store に 1 行足すので、
+    途中で止めても取った分は残る。extra は取り直したい URL（スコアの更新など）"""
     try:
         import bs4  # noqa: F401
     except ImportError:
         log('beautifulsoup4 が無い。pip install -r requirements.txt')
         return []
-    urls = filmarks_urls(f, limit)
-    log(f'Filmarks: {len(urls)} 作品ページを回る（間隔 {f.sleep} 秒 ≒ {len(urls) * f.sleep / 3600:.1f} 時間。'
-        f'取ったものは {f.cache} に残る）')
+    urls = filmarks_urls(f, limit, skip) + [u for u in extra]
+    log(f'Filmarks: 新しく {len(urls) - len(extra)} + 取り直し {len(extra)} ページを回る'
+        f'（間隔 {f.sleep} 秒 ≒ {len(urls) * f.sleep / 3600:.1f} 時間。取ったものは {store} に足していく）')
+    Path(store).parent.mkdir(parents=True, exist_ok=True)
+    sink = open(store, 'a', encoding='utf-8')
+    try:
+        return _fetch_each(f, urls, set(extra), sink)
+    finally:
+        sink.close()
+
+
+def _fetch_each(f, urls, fresh, sink):
     out = []
     for i, url in enumerate(urls, 1):
         try:
-            text, status = f.get(url)
+            text, status = f.get(url, fresh=url in fresh)
         except PermissionError as e:
             log(e)
             continue
@@ -520,6 +555,8 @@ def fetch_filmarks(f: Fetcher, limit=None):
         item = parse_filmarks(text, url)
         if item:
             out.append(item)
+            sink.write(json.dumps(item, ensure_ascii=False) + '\n')
+            sink.flush()
         if i % 100 == 0:
             log(f'  {i}/{len(urls)}  取れた {len(out)}')
     return out
@@ -583,8 +620,9 @@ def finish(rows):
     """軸・人気・表示用のタグを決めて、配る形にする"""
     out = []
     for r in rows:
-        text = ' '.join([r.get('title') or '', r.get('synopsis') or '', r.get('review_text') or ''])
-        counts = text_tags(text)
+        counts = dict(text_tags(' '.join([r.get('title') or '', r.get('synopsis') or ''])))
+        for t, n in (r.get('counts') or {}).items():   # Filmarks で数えたもの（レビュー込み）が勝つ
+            counts[t] = max(counts.get(t, 0), n)
         hand = [t for t in r.get('tags', []) if t in TAGS]
         if hand:
             # 手で付けたタグを主に、文章の言葉を少しだけ混ぜる
@@ -636,15 +674,35 @@ def main(argv=None):
     ap.add_argument('--out', default=str(HERE / 'all_anime_db.json'))
     ap.add_argument('--annict', action='store_true', help='Annict から全作品を足す（ANNICT_TOKEN が要る）')
     ap.add_argument('--annict-since', type=int, default=1960)
-    ap.add_argument('--filmarks', action='store_true', help='Filmarks のアニメを全部取る')
+    ap.add_argument('--filmarks', action='store_true',
+                    help='Filmarks のアニメを取る。取ったことのある作品は飛ばす（毎期の追加はこれだけ）')
+    ap.add_argument('--refresh-since', type=int, default=None,
+                    help='この年より後の作品は取り直す（★やレビュー数の更新。例 --refresh-since 2025）')
+    ap.add_argument('--refresh-all', action='store_true', help='全部取り直す')
     ap.add_argument('--limit', type=int, default=None, help='取る数の上限（試す時に）')
     ap.add_argument('--sleep', type=float, default=1.5, help='Filmarks の間隔（秒。1.5 より短くはならない）')
     ap.add_argument('--min-info', type=float, default=0.25, help='軸を決める手がかりがこれより少ない作品は落とす')
+    ap.add_argument('--probe', metavar='URL', help='Filmarks の作品ページ 1 枚だけ取って、読めた中身を見せる（何も書かない）')
     args = ap.parse_args(argv)
+
+    if args.probe:
+        f = Fetcher(args.sleep, os.environ.get('SCRAPEDO_TOKEN'))
+        if not f.allowed(args.probe):
+            log('robots.txt で止められている / 読めない')
+            return 1
+        text, status = f.get(args.probe, fresh=True)
+        item = parse_filmarks(text, args.probe) if status == 200 else None
+        print(json.dumps({'status': status, 'parsed': item, 'sitemaps': f.sitemaps(FM)},
+                         ensure_ascii=False, indent=1))
+        missing = [k for k in ('title', 'score', 'reviews', 'synopsis', 'year') if not (item or {}).get(k)]
+        log('読めなかった項目: ' + (', '.join(missing) if missing else 'なし') +
+            ('  → SEL を直す' if missing else ''))
+        return 0
 
     defaults = load_defaults()
     log(f'手元の一覧: {len(defaults)} 作')
 
+    annict_store = load_store(ANNICT_STORE)
     annict = []
     if args.annict:
         token = os.environ.get('ANNICT_TOKEN')
@@ -655,15 +713,31 @@ def main(argv=None):
                 annict = fetch_annict(token, since=args.annict_since, limit=args.limit)
             except Exception as e:  # noqa: BLE001
                 log('Annict で止まった:', e)
+            if annict:   # API は速いので、取れたら丸ごと入れ替える
+                ANNICT_STORE.parent.mkdir(parents=True, exist_ok=True)
+                ANNICT_STORE.write_text(''.join(json.dumps(a, ensure_ascii=False) + '\n' for a in annict),
+                                        encoding='utf-8')
+                annict_store = load_store(ANNICT_STORE)
+    annict = list(annict_store.values())
+    log(f'Annict: {len(annict)} 作（{ANNICT_STORE.name}）')
 
-    filmarks = []
+    store = load_store(FILMARKS_STORE)
     if args.filmarks:
         tok = os.environ.get('SCRAPEDO_TOKEN')
-        log('Filmarks: ' + ('scrape.do を通す' if tok else '直接取りに行く'))
+        log('Filmarks: ' + ('scrape.do を通す' if tok else '直接取りに行く') + f'。取ってある {len(store)} 作は飛ばす')
+        extra = [u for u, r in store.items()
+                 if args.refresh_all or (args.refresh_since and (r.get('year') or 0) >= args.refresh_since)]
         try:
-            filmarks = fetch_filmarks(Fetcher(args.sleep, tok), args.limit)
+            fetch_filmarks(Fetcher(args.sleep, tok), args.limit, FILMARKS_STORE,
+                           skip=frozenset(store), extra=extra)
         except Exception as e:  # noqa: BLE001
             log('Filmarks で止まった:', e)
+        store = load_store(FILMARKS_STORE)
+        # 取り直しで同じ作品が何行にもなるので、1 作 1 行に詰め直す
+        FILMARKS_STORE.write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in store.values()),
+                                  encoding='utf-8')
+    filmarks = list(store.values())
+    log(f'Filmarks: {len(filmarks)} 作（{FILMARKS_STORE.name}）')
 
     works = finish(merge(defaults, annict, filmarks))
     before = len(works)
@@ -696,4 +770,4 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

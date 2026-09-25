@@ -6,3 +6,5 @@ __pycache__/
 store/*.png
 !store/cover-square-800x800.png
 .cache/
+.env
+.venv/
