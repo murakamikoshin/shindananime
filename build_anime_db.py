@@ -356,7 +356,7 @@ def fetch_annict(token, since=1960, until=None, session=None, limit=None, sleep=
 ANNICT_REVIEWS_QUERY = '''
 query($ids: [Int!]) {
   searchWorks(annictIds: $ids, first: %d) {
-    nodes { annictId reviews(first: %d) { nodes { body } } }
+    nodes { annictId reviews(first: %d) { nodes { body } } staffs(first: 40) { nodes { name roleText } } }
   }
 }'''
 
@@ -398,7 +398,9 @@ def fetch_annict_reviews(token, works, store=ANNICT_REVIEWS_STORE, session=None,
             for n in data['data']['searchWorks']['nodes']:
                 bodies = [x.get('body') or '' for x in ((n.get('reviews') or {}).get('nodes') or [])]
                 text = ' '.join(b for b in bodies if b.strip())
-                sink.write(json.dumps({'annict_id': n['annictId'], 'counts': text_tags(text),
+                studios = [x.get('name') for x in ((n.get('staffs') or {}).get('nodes') or [])
+                           if x.get('name') and 'アニメーション制作' in (x.get('roleText') or '')]
+                sink.write(json.dumps({'annict_id': n['annictId'], 'counts': text_tags(text), 'studios': studios,
                                        'n': sum(1 for b in bodies if b.strip()),
                                        'fetched_at': dt.date.today().isoformat()}, ensure_ascii=False) + '\n')
                 seen.add(n['annictId'])
@@ -420,6 +422,8 @@ def attach_annict_reviews(annict, store=ANNICT_REVIEWS_STORE):
         r = rev.get(a.get('annict_id'))
         if r and r.get('counts'):
             a['counts'] = r['counts']
+        if r and r.get('studios'):
+            a['studios'] = r['studios']
     return annict
 
 
@@ -685,13 +689,61 @@ def merge(defaults, annict, filmarks):
     return rows
 
 
+# けなす言い方・打ち消し。数える前に文章から取り除く（「作画崩壊」を「作画」と数えないため）
+NEG_PHRASES = [
+    '作画崩壊', '作画が崩れ', '作画の崩れ', '作画の乱れ', '作画が乱れ', '作画が安定しな',
+    '作画が残念', '作画は残念', '作画が微妙', '作画は微妙', '作画がいまいち', '作画はいまいち', '作画がイマイチ',
+    '作画が悪', '作画は悪', '作画がひど', '作画が酷', '作画が雑', '作画がしょぼ', '作画がショボ', '作画が低',
+    '紙芝居', '映像が残念', '映像が微妙', '演出が微妙', '演出が残念', '演出がダサ', '演出が古',
+    '泣けなかった', '泣けない', '泣けず', '涙は出なかった', '感動しなかった', '感動できな', '感動はしな',
+    '笑えなかった', '笑えない', 'ギャグが寒', '寒いギャグ', 'ギャグがつまらな', 'ギャグが滑',
+    '伏線が回収されな', '伏線回収されな', '伏線が放置', '伏線未回収', '回収されず', '回収されな', '回収しな',
+    '投げっぱなし', '爽快感がな', '爽快感はな', 'スッキリしな', 'すっきりしな', '熱くな', '燃えな',
+    '考察の余地がな', '癒されな', '無双がつまらな',
+]
+
+
 def text_tags(text):
+    """文章に出てくる言葉をタグごとに数える。けなす言い方は先に取り除く。
+    長い言葉から数えて、数えた所は消す（「神作画」を「作画」と二重に数えない）"""
+    for p in NEG_PHRASES:
+        text = text.replace(p, ' ')
     counts = {}
     for tag, words in TAG_WORDS.items():
-        n = sum(text.count(w) for w in words)
+        t, n = text, 0
+        for w in sorted(words, key=len, reverse=True):
+            c = t.count(w)
+            if c:
+                n += c
+                t = t.replace(w, ' ')
         if n:
             counts[tag] = n
     return counts
+
+
+def load_studios(path=HERE / 'data' / 'visual_studios.tsv'):
+    out = {}
+    path = Path(path)
+    if path.exists():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            if line.strip() and not line.startswith('#'):
+                name, w = (line.split('\t') + ['1'])[:2]
+                out[unicodedata.normalize('NFKC', name).lower().replace(' ', '')] = float(w or 1)
+    return out
+
+
+VISUAL_STUDIOS = load_studios()
+
+
+def studio_boost(studios):
+    """制作スタジオから V（映像美）をどれだけ上げるか（0〜0.35）"""
+    best = 0.0
+    for s in studios or []:
+        n = unicodedata.normalize('NFKC', s).lower().replace(' ', '')
+        for name, w in VISUAL_STUDIOS.items():
+            if name in n:
+                best = max(best, w)
+    return 0.35 * best
 
 
 def finish(rows):
@@ -714,6 +766,9 @@ def finish(rows):
             vec = vec_from_tags(list(counts), {t: math.log1p(n) for t, n in counts.items()})
             shown = [t for t, _ in sorted(counts.items(), key=lambda kv: -kv[1])]
         media = (r.get('media') or 'TV').upper()
+        boost = studio_boost(r.get('studios'))
+        if boost:
+            vec[4] = round(min(1.0, vec[4] + boost), 2)
         if media == 'MOVIE':
             vec[4] = round(min(1.0, vec[4] + .25), 2)
             vec[5] = round(min(1.0, vec[5] + .15), 2)

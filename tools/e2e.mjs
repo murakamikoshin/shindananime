@@ -44,13 +44,14 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   await page.click('#start');
 
   /* 深淵を覗く考察コレクター（RDCP-VM）に寄せて答える。途中で一度戻る */
-  const pattern = [1, 1, 0.5, 1, 1, 0.5, 1, 1, 1, 1, 1, 0.5, 1, 0.5, 1, 1, 1, 0];
+  /* 最後の 2 問（画質・年代）は「新しめがいい」 */
+  const pattern = [1, 1, 0.5, 1, 1, 0.5, 1, 1, 1, 1, 1, 0.5, 1, 0.5, 1, 1, 1, 0, 1, 1];
   for (let i = 0; i < pattern.length; i++) {
-    ok((await page.textContent('#count')).trim() === `${i + 1}/18`, `${i + 1}/18 の数え方`);
+    ok((await page.textContent('#count')).trim() === `${i + 1}/20`, `${i + 1}/20 の数え方`);
     if (phone && i === 3) await shot(page, 'quiz');
     if (i === 5) {
       await page.click('#back');
-      ok((await page.textContent('#count')).trim() === '5/18', '戻る');
+      ok((await page.textContent('#count')).trim() === '5/20', '戻る');
       await page.click(`#qbox .choice[data-v="${pattern[4]}"]`);
     }
     await page.click(`#qbox .choice[data-v="${pattern[i]}"]`);
@@ -72,12 +73,24 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   ok(code === 'RDCP-VM', 'タイプ: ' + code);
   ok(name === '【深淵を覗く考察コレクター型】', '二つ名: ' + name);
   ok(await page.isVisible('#ad-top'), '結果の一番上に広告枠');
+  ok((await page.getAttribute('#year-chips [data-year="2010"]', 'aria-pressed')) === 'true', '新しめを選ぶと、はじめから 2010 年以降に絞る');
   const fate = await page.textContent('#fate h3');
   const runners = await page.$$eval('#runners h3', (hs) => hs.map((h) => h.textContent));
   const pct = await page.textContent('#fate article');
   ok(runners.length === 2, '次点は 2 作');
   ok(/\d+%適合/.test(pct), '適合度');
   console.log(`${vp.name}: ${code} ${name} → 運命の1作「${fate}」 次点「${runners.join('」「')}」`);
+
+  /* 新しめを選んだので、はじめから 2010 年以降に絞られている。外すと選び直す */
+  const years = async () => page.$$eval('#fate article, #runners article', (as) =>
+    as.map((a) => Number((a.textContent.match(/(\d{4})年・/) || [])[1] || 0)));
+  ok((await years()).every((y) => !y || y >= 2010), '出ている作品は 2010 年以降: ' + (await years()).join(','));
+  await page.click('#year-chips [data-year="2018"]');
+  ok((await years()).every((y) => !y || y >= 2018), '2018 年以降に切り替えられる: ' + (await years()).join(','));
+  await page.click('#year-chips [data-year="0"]');
+  ok((await page.getAttribute('#year-chips [data-year="0"]', 'aria-pressed')) === 'true', 'こだわらないに戻せる');
+  await page.click('#year-chips [data-year="2010"]');
+  ok((await page.textContent('#fate h3')) === fate, '2010 年以降に戻すと、同じ運命の1作');
 
   const vod = await page.$$eval('#fate a[data-vod]', (as) => as.map((a) => [a.textContent, a.rel, a.href]));
   ok(vod.length === 2, '配信ボタンは 2 つ');
@@ -106,7 +119,7 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   ok(!runners.includes(after), '差し替えた作品が次点と重ならない');
 
   await page.click('#retry');
-  ok((await page.textContent('#count')).trim() === '1/18', 'もう一度');
+  ok((await page.textContent('#count')).trim() === '1/20', 'もう一度');
   ok(errors.length === 0, `${vp.name}: エラー ${errors.join(' | ')}`);
   await page.close();
 }

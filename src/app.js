@@ -1,5 +1,5 @@
 import { questions } from './questions.js';
-import { AXES, profile, typeCode, nickname, describe, pick, rank, reasons, exclusion, usable, franchise, sameFranchise } from './logic.js';
+import { AXES, ERA, eraPref, profile, typeCode, nickname, describe, pick, rank, reasons, exclusion, usable, franchise, sameFranchise } from './logic.js';
 import { CONFIG } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,6 +11,8 @@ let WORKS = [];            // 診断に使える作品
 let answers = [];
 let idx = 0;
 let user = null;           // 6 軸の値
+let era = 0;               // 画質・年代の好み（+ ほど新しめ）
+let minYear = 0;           // 結果画面の「放送年」の切り替え
 let shown = [];            // [運命の1作, 次点, 次点]
 const seen = new Set();    // 「見た」と言われた作品
 
@@ -32,11 +34,11 @@ const fmt = (n) => n.toLocaleString('ja-JP');
 /* ------------------------------------------------------------ 質問 */
 function renderQuestion() {
   const q = questions[idx];
-  const axis = AXES.find((a) => a.key === q.axis);
+  const axis = AXES.find((a) => a.key === q.axis) || ERA;
   $('count').textContent = `${idx + 1}/${TOTAL}`;
   $('progress').setAttribute('aria-valuenow', String(idx));
   $('progress-fill').style.width = `${(idx / TOTAL) * 100}%`;
-  $('qaxis').textContent = `${axis.label}　${axis.pos} or ${axis.neg}`;
+  $('qaxis').textContent = axis === ERA ? `${axis.label}（タイプには入りません）` : `${axis.label}　${axis.pos} or ${axis.neg}`;
   $('qtext').textContent = `Q${idx + 1}. ${q.q}`;
   $('qa').textContent = q.a;
   $('qb').textContent = q.b;
@@ -128,6 +130,9 @@ function fillAd(boxId) {
 /* ------------------------------------------------------------ 解析中 */
 function startLoading() {
   user = profile(questions, answers);
+  era = eraPref(questions, answers);
+  /* 新しめをはっきり選んだ人は、はじめから 2010 年以降に絞っておく（結果画面で外せる） */
+  minYear = era >= 0.75 ? 2010 : 0;
   const code = typeCode(user);
   const ex = exclusion(user, WORKS);
   const lines = [
@@ -151,7 +156,7 @@ function startLoading() {
   }
 
   /* 結果は先に計算しておく（待たせるのは演出だけ） */
-  shown = pick(user, WORKS, 3, seen);
+  shown = pick(user, WORKS, 3, seen, { era, minYear });
 
   const log = $('loading-log');
   log.replaceChildren();
@@ -182,9 +187,10 @@ function renderResult() {
   $('type-code').textContent = code;
   $('type-name').textContent = `【${name}型】`;
   $('type-desc').replaceChildren(...describe(user).map((d) => el('li', '', '・' + d)));
-  const axes = AXES.map((a, i) => axisRow(a, user[i]));
+  const axes = AXES.map((a, i) => axisRow(a, user[i])).concat(axisRow(ERA, era));
   $('result-axes').replaceChildren(...axes);
 
+  renderYearChips();
   renderPicks();
   show('result');
   fillAd('ad-top');
@@ -196,6 +202,26 @@ function renderResult() {
     ? `※ ★は Filmarks のスコア（${day} 時点）。タイプと適合度は当サイト独自の計算です。`
     : '※ スコアを取得できていない作品は、Filmarks のページへのリンクだけを出しています。タイプと適合度は当サイト独自の計算です。';
   $('note-affiliate').hidden = !CONFIG.vod.some((v) => v.url);
+}
+
+/* 放送年の切り替え。押すと、その条件で 3 作を選び直す */
+const YEAR_CHOICES = [[0, 'こだわらない'], [2010, '2010年以降'], [2018, '2018年以降']];
+function renderYearChips() {
+  const box = $('year-chips');
+  box.replaceChildren(...YEAR_CHOICES.map(([y, label]) => {
+    const b = el('button', `rounded-full border px-3 py-1.5 text-xs font-bold transition ${y === minYear
+      ? 'border-sun bg-sun text-ink' : 'border-line text-slate-300 hover:border-white'}`, label);
+    b.type = 'button';
+    b.dataset.year = String(y);
+    b.setAttribute('aria-pressed', String(y === minYear));
+    b.addEventListener('click', () => {
+      minYear = y;
+      shown = pick(user, WORKS, 3, seen, { era, minYear });
+      renderYearChips();
+      renderPicks();
+    });
+    return b;
+  }));
 }
 
 function renderPicks() {
@@ -304,7 +330,7 @@ function replace(i) {
   seen.add(shown[i].work.id);
   const others = new Set([...seen, ...shown.map((c) => c.work.id)]);
   const taken = shown.map((c) => franchise(c.work));
-  const next = rank(user, WORKS, others).find((c) => !taken.some((g) => sameFranchise(g, franchise(c.work))));
+  const next = rank(user, WORKS, others, { era, minYear }).find((c) => !taken.some((g) => sameFranchise(g, franchise(c.work))));
   if (!next) return;
   shown[i] = next;
   renderPicks();

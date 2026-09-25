@@ -258,6 +258,36 @@ class AnnictReviewsTest(unittest.TestCase):
         self.assertEqual(row['counts'], {'伏線': 5, '作画神': 1})
 
 
+class WordsTest(unittest.TestCase):
+    def test_negative_phrases_are_not_counted(self):
+        self.assertEqual(b.text_tags('作画崩壊がひどい。紙芝居だった。泣けなかった。伏線が回収されないまま'), {})
+
+    def test_no_double_count(self):
+        self.assertEqual(b.text_tags('神作画')['作画神'], 1, '「神作画」を「作画」と二重に数えない')
+
+    def test_studio_boost(self):
+        self.assertGreater(b.studio_boost(['京都アニメーション']), 0.3)
+        self.assertEqual(b.studio_boost(['知らない会社']), 0)
+        rows = b.merge([], [{'title': 'A', 'year': 2020, 'studios': ['ufotable'], 'counts': {'バトル': 5},
+                             'sources': ['annict']},
+                            {'title': 'B', 'year': 2020, 'counts': {'バトル': 5}, 'sources': ['annict']}], [])
+        a, bb = sorted(b.finish(rows), key=lambda w: w['t'])
+        self.assertGreater(a['v'][4], bb['v'][4], '映像に定評のあるスタジオの作品は V が上がる')
+
+    def test_annict_reviews_keep_studios(self):
+        class S:
+            def post(self, url, headers=None, json=None, timeout=None):
+                assert 'staffs(first:' in json['query']
+                return Resp(js={'data': {'searchWorks': {'nodes': [{
+                    'annictId': 1, 'reviews': {'nodes': []},
+                    'staffs': {'nodes': [{'name': '京都アニメーション', 'roleText': 'アニメーション制作'},
+                                         {'name': '誰か', 'roleText': '監督'}]}}]}}})
+        with tempfile.TemporaryDirectory() as t:
+            store = Path(t) / 'r.jsonl'
+            b.fetch_annict_reviews('T', [{'annict_id': 1, 'watchers': 100}], store=store, session=S(), sleep=0)
+            self.assertEqual(b.load_store(store)[1]['studios'], ['京都アニメーション'], '制作会社だけ残す')
+
+
 class EnvTest(unittest.TestCase):
     def test_dotenv(self):
         import os

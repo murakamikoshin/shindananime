@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>【運命の1作】ガチアニメ診断 — 18問でわかるあなたのアニメタイプ | Koshin Studio</title>
-<meta name="description" content="18の質問から6つの軸であなたのアニメタイプ（例: RDCP-VM）と二つ名を割り出し、アニメのデータベース全体から「運命の1作」と次点2作を選びます。">
+<title>【運命の1作】ガチアニメ診断 — 20問でわかるあなたのアニメタイプ | Koshin Studio</title>
+<meta name="description" content="20の質問から6つの軸と画質・年代の好みであなたのアニメタイプ（例: RDCP-VM）と二つ名を割り出し、アニメのデータベース全体から「運命の1作」と次点2作を選びます。">
 <!-- 検索に出すのは koshinstudio.com/works/shindananime/ の方。実物は拾わせない -->
 <meta name="robots" content="noindex, follow">
 <meta property="og:title" content="【運命の1作】ガチアニメ診断">
-<meta property="og:description" content="18問で、あなたのアニメタイプと、今いちばん刺さる運命の1作を。">
+<meta property="og:description" content="20問で、あなたのアニメタイプと、今いちばん刺さる運命の1作を。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://koshinstudio.com/app/shindananime/">
 <meta property="og:image" content="https://koshinstudio.com/assets/og/og_works_shindananime.jpg">
@@ -37,7 +37,7 @@
       あなたに今<br>いちばん刺さる<br><span class="grad-text">運命の1作</span>を。
     </h1>
     <p class="mt-5 leading-relaxed text-slate-300">
-      全18問。<b class="text-white">6つの軸</b>であなたのアニメタイプ（例: <b class="text-sun">RDCP-VM</b>）と二つ名を割り出し、
+      全20問。<b class="text-white">6つの軸</b>と画質・年代の好みから、あなたのアニメタイプ（例: <b class="text-sun">RDCP-VM</b>）と二つ名を割り出し、
       データベースの全作品と照らし合わせて選びます。
     </p>
     <ul class="mt-6 grid grid-cols-3 gap-2 text-center text-xs text-mute sm:grid-cols-6" aria-label="6つの軸">
@@ -60,11 +60,11 @@
     <div class="flex items-center gap-3 text-sm">
       <button id="back" type="button" class="rounded-lg border border-line px-3 py-1.5 text-mute hover:text-white disabled:opacity-30" aria-label="ひとつ前の質問へ">← 戻る</button>
       <div class="flex-1">
-        <div class="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuemin="0" aria-valuemax="18" id="progress">
+        <div class="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuemin="0" aria-valuemax="20" id="progress">
           <div id="progress-fill" class="h-full rounded-full bg-gradient-to-r from-hot to-cool transition-all duration-300" style="width:0"></div>
         </div>
       </div>
-      <span id="count" class="w-14 text-right tabular-nums text-mute">1/18</span>
+      <span id="count" class="w-14 text-right tabular-nums text-mute">1/20</span>
     </div>
 
     <div id="qbox" class="pop mt-8">
@@ -135,6 +135,10 @@
 
     <h2 class="mt-10 text-center text-sm font-black tracking-[.2em] text-hot">あなたに今一番刺さる</h2>
     <p class="text-center text-3xl font-black"><span class="grad-text">運命の1作</span></p>
+    <div class="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="放送年で絞る">
+      <span class="text-xs font-bold text-mute">放送年</span>
+      <div id="year-chips" class="flex flex-wrap gap-2"></div>
+    </div>
     <div id="fate" class="mt-4"></div>
 
     <h2 class="mt-12 text-lg font-black">惜しくも次点だったおすすめ2選</h2>

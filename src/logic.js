@@ -14,6 +14,25 @@ export const AXES = [
   { key: 'watch', label: '視聴スタイル', pos: 'M', neg: 'L', posName: '熟読・考察', negName: 'サクッと' },
 ];
 
+/* 画質・年代の好み（-1〜+1）。+ ほど新しめ・高画質を好む。タイプコードには入れない */
+export const ERA = { key: 'era', label: '画質・年代', pos: 'N', neg: 'O', posName: '新しめ・高画質', negName: '年代不問' };
+
+export function eraPref(questions, answers) {
+  let sum = 0, n = 0;
+  questions.forEach((q, i) => {
+    if (q.axis === 'era' && typeof answers[i] === 'number') { sum += answers[i]; n++; }
+  });
+  return n ? clamp(sum / n) : 0;
+}
+
+/* 古い作品をどれだけ下げるか。新しめ好きな人ほど、古い作品ほど下げる。
+   年代不問の人は、昔の作品をほんの少しだけ上げる（名作を拾いやすく）。年が分からない作品は動かさない */
+export function eraAdjust(era, year) {
+  if (!year) return 0;
+  const age = year < 2000 ? 1 : year < 2010 ? 0.55 : year < 2015 ? 0.15 : 0;
+  return era > 0 ? -0.35 * era * age : -0.04 * era * age;
+}
+
 /* 軸ごとに回答をならす。答えていない問題は数えない */
 export function profile(questions, answers) {
   const sum = {}, n = {};
@@ -94,12 +113,15 @@ function quality(w) {
 /* 診断に使える作品だけ（軸の手がかりが少なすぎるものは外す） */
 export const usable = (works) => works.filter((w) => (w.i ?? 1) >= 0.25 && w.v.some((x) => Math.abs(x) > 0.15));
 
-export function rank(u, works, exclude = new Set()) {
+/* opts.era … 画質・年代の好み（eraPref）。opts.minYear … これより前の作品は出さない（結果画面の切り替え） */
+export function rank(u, works, exclude = new Set(), opts = {}) {
+  const { era = 0, minYear = 0 } = opts;
   const out = [];
   for (const w of works) {
     if (exclude.has(w.id)) continue;
+    if (minYear && w.y && w.y < minYear) continue;
     const c = cosine(u, w.v);
-    out.push({ work: w, cos: c, total: 0.82 * c + quality(w), match: matchPct(c) });
+    out.push({ work: w, cos: c, total: 0.82 * c + quality(w) + eraAdjust(era, w.y), match: matchPct(c) });
   }
   return out.sort((x, y) => y.total - x.total);
 }
@@ -128,8 +150,8 @@ export function sameFranchise(a, b) {
 }
 
 /* 運命の 1 作と、次点 2 作。同じシリーズと、軸がほぼ同じ作品は並べない */
-export function pick(u, works, n = 3, exclude = new Set()) {
-  const ranked = rank(u, works, exclude);
+export function pick(u, works, n = 3, exclude = new Set(), opts = {}) {
+  const ranked = rank(u, works, exclude, opts);
   const chosen = [];
   const used = [];
   for (const c of ranked) {

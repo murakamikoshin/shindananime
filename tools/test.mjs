@@ -2,7 +2,7 @@
        node tools/test.mjs */
 import { readFileSync } from 'node:fs';
 import { questions } from '../src/questions.js';
-import { AXES, profile, typeCode, nickname, pick, reasons, exclusion, usable, cosine, franchise, sameFranchise } from '../src/logic.js';
+import { AXES, eraPref, profile, typeCode, nickname, pick, reasons, exclusion, usable, cosine, franchise, sameFranchise } from '../src/logic.js';
 
 const db = JSON.parse(readFileSync(new URL('../all_anime_db.json', import.meta.url), 'utf8'));
 const works = usable(db.works);
@@ -10,7 +10,8 @@ let bad = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('× ' + msg); bad = 1; } };
 
 /* 形 */
-ok(questions.length === 18, `質問は 18 問（いま ${questions.length}）`);
+ok(questions.length === 20, `質問は 20 問（いま ${questions.length}）`);
+ok(questions.filter((q) => q.axis === 'era').length === 2, '画質・年代は 2 問');
 for (const a of AXES) ok(questions.filter((q) => q.axis === a.key).length === 3, `${a.label} は 3 問`);
 ok(questions.every((q) => !/\[[A-Z]+\]|^質問|^\d+\./.test(q.q + q.a + q.b)), '文言に番号や [R] が残っていない');
 ok(works.length >= 500, `使える作品は 500 以上（いま ${works.length}）`);
@@ -23,7 +24,7 @@ ok(typeCode(all(1)) === 'RDCP-VM', '全部 A → RDCP-VM');
 ok(typeCode(all(-1)) === 'FHSA-STL', '全部 B → FHSA-STL');
 ok(nickname(all(1)) === '深淵を覗く考察コレクター', 'RDCP-VM の二つ名');
 ok(nickname(all(-1)) === '脳汁全開の爽快エンタメハンター', 'FHSA-STL の二つ名');
-const per = (o) => questions.map((q) => o[q.axis] ?? 0);
+const per = (o) => questions.map((q) => o[q.axis] ?? 0);  // era も o.era で指定できる
 const u = (o) => profile(questions, per(o));
 ok(nickname(u({ world: -1, mood: 1, structure: 1, taste: -1, visual: 1, watch: 1 })) === '異世界を旅するロマン追及者', 'FDCA-VM');
 ok(nickname(u({ world: 1, mood: -1, structure: -1, taste: 1, visual: -1, watch: -1 })) === '現実逃避のライトファン', 'RHSP-STL');
@@ -71,6 +72,22 @@ ok(three.every((c) => reasons(u({ world: -1, mood: 1 }), c.work).length > 0), '�
 const ex = exclusion(u({ mood: 1, taste: 1 }), works);
 ok(ex.names.join('×') === 'ダーク×心理戦', '除外に使う 2 軸: ' + ex.names.join('×'));
 ok(ex.excluded > 0 && ex.excluded < works.length, `除外数は本当に数えた数（${ex.excluded}）`);
+
+/* 画質・年代 */
+const withEra = (o, e) => profile(questions, per({ ...o, era: e }));
+ok(eraPref(questions, per({ era: 1 })) === 1 && eraPref(questions, per({ era: -1 })) === -1, '画質・年代の値');
+ok(typeCode(withEra({ mood: 1 }, 1)) === typeCode(withEra({ mood: 1 }, -1)), '画質・年代はタイプコードを変えない');
+for (const o of [{ mood: 1, taste: 1 }, { world: -1, mood: -1 }, { visual: 1, watch: 1 }]) {
+  const uu = u(o);
+  const newer = pick(uu, works, 3, new Set(), { era: 1 });
+  const any = pick(uu, works, 3, new Set(), { era: -1 });
+  const avg = (l) => l.reduce((a, c) => a + (c.work.y || 2010), 0) / l.length;
+  console.log(`新しめ好き: ${newer.map((c) => `${c.work.t}(${c.work.y})`).join(' / ')}`);
+  ok(avg(newer) >= avg(any), '新しめ好きには、新しい作品が選ばれやすい');
+  ok(newer.every((c) => !c.work.y || c.work.y >= 2000), '新しめ好きに 2000 年より前の作品は出にくい');
+  const strict = pick(uu, works, 3, new Set(), { minYear: 2018 });
+  ok(strict.length === 3 && strict.every((c) => !c.work.y || c.work.y >= 2018), '放送年で絞れる');
+}
 
 /* 乱数の回答で、出番の偏り */
 let seed = 11;
