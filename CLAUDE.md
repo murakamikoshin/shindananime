@@ -56,6 +56,11 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - バグ: 質問を増やしたことで、片方ばかり選ぶと `total`（cos + quality + era + 好み）が 1 を超えて、複数の作品が match 100% に張り付き「同じ系統でもニュアンスが違う」はずの差が消えた。`quality()` の上乗せを控えめに（最大 0.18→0.126）、`prefAdjust()` の合計に上限（±0.08）を付けて緩和した。普通の（極端でない）回答では元々十分な差が出る（2026-09-25、`src/logic.js`）
 - バグ: 配信ボタン（DMM TV / U-NEXT）が、その作品が実際にそのサービスにあるかを見ずに毎回出ていて、無い場合に検索結果が空になっていた。`w.vod`（Filmarks が持っている実際の配信状況）でボタンを絞り込むように直した。`w.vod` が分からない作品は今まで通り全部の中から出す（2026-09-25、`src/app.js` の `vodButtons`）。あわせて、Prime Video・Netflix・ABEMA・Hulu・Disney+・dアニメストア・TELASA・FOD・Lemino・バンダイチャンネルの10サービスを追加（`src/config.js`、`build_anime_db.py` の `VOD_NAMES`）。検索URLは実際にブラウザで確かめた。Disney+とバンダイチャンネルは検索URLの形が確かめられなかったので、トップページへのリンクにしてある（アフィリエイトは全部未提携。決まったら `url` を埋める）。サービスが増えてカードが縦に伸びすぎるので、`MAX_VOD_BUTTONS = 3` で上位3つに絞る
 - 質問画面の「世界観　R or F」のような軸の札（`qaxis`）は不要という指摘で削除（2026-09-25、`src/index.html` / `src/app.js`）
+- 配信ボタンを「メジャー度順」に並べ直した（Netflix・Prime Video・Disney+・U-NEXT・Hulu・DMM TV・ABEMA・dアニメストア・FOD・TELASA・Lemino・バンダイチャンネルの順）。実際に見られるサービスの中から、この並びで上位3つが出る（2026-09-25、`src/config.js`）
+- バグ: 適合度%を整数に丸めていたせいで、近い値の作品が同じ%にたくさん集まって見えた。小数第一位まで出すようにした（2026-09-25、`src/logic.js` の `matchPct`）
+- 画像が無い作品が多い（77%程度）→ 調べたら、AnnictとFilmarksでタイトルの区切り方が違い（「Season 3 Part.1」と「Season3」など）、同じ作品なのにマージが一致せず画像だけ欠けているケースが大半だった。同じシリーズ（`franchise_key`）で画像がある作品から借りるようにして 86% まで改善（2026-09-25、`build_anime_db.py` の `finish()`）
+- footer の「あつかい（プライバシー）」が koshinstudio.com 全体のページで関係ないという指摘 → このアプリ専用のプライバシーページを新設（`src/privacy/index.html`）。診断の回答・作品データ・広告(AdSense)・配信ボタンについて書いた。AdSenseの規約でプライバシーポリシーの掲示が必須なので、リンクは無くさずに作り直す方針にした（2026-09-25）。あわせて `tools/serve.mjs` が「ディレクトリ/index.html」を解決できていなかったので直した（本番の Cloudflare Pages は元々対応している）
+- バグ: DMM TV の検索URL（`/vod/search/`）が404になっていた（DMM TV 側の変更）。実際にブラウザで確かめて `/vod/list/` に直した（2026-09-25、`src/config.js`）
 
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束

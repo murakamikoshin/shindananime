@@ -2,7 +2,7 @@
        npm run serve   →  http://localhost:4600/app/shindananime/
    e2e.mjs からも使う */
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,8 +16,10 @@ export function serve(port = 0, dir = dist) {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (path === '/' || path === BASE.slice(0, -1)) { res.writeHead(302, { Location: BASE }); return res.end(); }
     if (!path.startsWith(BASE)) { res.writeHead(404); return res.end('not here'); }
-    const file = join(dir, path.slice(BASE.length) || 'index.html');
+    let file = join(dir, path.slice(BASE.length) || 'index.html');
     try {
+      /* 本番の Cloudflare Pages は「ディレクトリ/」に index.html を返す。手元でも合わせる */
+      if ((await stat(file).catch(() => null))?.isDirectory()) file = join(file, 'index.html');
       const body = await readFile(file);
       res.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream' });
       res.end(body);

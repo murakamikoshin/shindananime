@@ -940,6 +940,18 @@ def finish(rows):
             'vod': r.get('vod') or [], 'src': ''.join(sorted({'default': 'd', 'annict': 'a', 'filmarks': 'f'}[s]
                                                                for s in r.get('sources', []))),
         })
+    # 画像が無い作品は、同じシリーズ（franchise_key）で画像がある作品から借りる。
+    # Annict と Filmarks でタイトルの区切り方が違い（「Season 3 Part.1」と「Season3」など）、
+    # 同じ作品なのにマージが一致せず画像だけ欠けることがあるため
+    by_franchise = {}
+    for a in out:
+        by_franchise.setdefault(franchise_key(a['t']), []).append(a)
+    for group in by_franchise.values():
+        borrowed = next((a['img'] for a in group if a.get('img')), None)
+        if borrowed:
+            for a in group:
+                if not a.get('img'):
+                    a['img'] = borrowed
     out.sort(key=lambda a: (-a['p'], a['t']))
     for i, a in enumerate(out):
         a['id'] = i

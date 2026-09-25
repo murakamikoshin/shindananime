@@ -200,7 +200,8 @@ export function rank(u, works, exclude = new Set(), opts = {}) {
 }
 
 /* 表示用の適合度。cos 1 → 100%、0 → 50% */
-export const matchPct = (c) => Math.max(0, Math.min(100, Math.round(50 + 50 * c)));
+/* 小数第一位まで。整数に丸めると、近い値の作品がまとめて同じ%に見えてしまうため */
+export const matchPct = (c) => Math.max(0, Math.min(100, Math.round((50 + 50 * c) * 10) / 10));
 
 /* シリーズ違い（1期と2期、劇場版など）を同じ作品とみなすための札。
    Filmarks のシリーズ id があればそれ。無ければタイトルの頭（最初の区切りまで） */

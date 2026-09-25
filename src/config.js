@@ -40,20 +40,15 @@ export const CONFIG = {
      url が空の間は search（各サービスの検索ページ）へのただのリンクになる。
      url を入れたボタンには PR の札と rel="sponsored" が付く（外さないこと）。
      「31日間無料」などの条件はサービス側で変わる。出す前に提携先の最新の条件と合わせること */
+  /* メジャー度順に並べてある。実際に見られるサービス（w.vod）の中から、
+     この並びで上から MAX_VOD_BUTTONS 個だけ出す（vodButtons、src/app.js） */
   vod: [
     {
-      id: 'dmmtv',
-      label: 'DMM TVで無料体験視聴する ➔',
-      url: '',   // 例: 'https://px.a8.net/svt/ejp?a8mat=XXXXX&a8ejpredirect={url}'
-      search: 'https://tv.dmm.com/vod/search/?keyword={q}',
-      className: 'bg-[#ff2d55] hover:bg-[#ff4d6d]',
-    },
-    {
-      id: 'unext',
-      label: 'U-NEXTで31日間無料体験 ➔',
+      id: 'netflix',
+      label: 'Netflixで探す ➔',
       url: '',
-      search: 'https://video.unext.jp/freeword?query={q}',
-      className: 'bg-[#1b1b1b] ring-1 ring-white/30 hover:bg-[#2a2a2a]',
+      search: 'https://www.netflix.com/search?q={q}',
+      className: 'bg-[#E50914] hover:bg-[#f21c27]',
     },
     {
       id: 'prime',
@@ -63,18 +58,18 @@ export const CONFIG = {
       className: 'bg-[#00A8E1] hover:bg-[#33bce8]',
     },
     {
-      id: 'netflix',
-      label: 'Netflixで探す ➔',
+      id: 'disney',
+      label: 'Disney+を見る ➔',
       url: '',
-      search: 'https://www.netflix.com/search?q={q}',
-      className: 'bg-[#E50914] hover:bg-[#f21c27]',
+      search: 'https://www.disneyplus.com/ja-jp',   // 未ログインだと検索URLが無いので、トップへ
+      className: 'bg-[#113CCF] hover:bg-[#2a52e0]',
     },
     {
-      id: 'abema',
-      label: 'ABEMAで探す ➔',
+      id: 'unext',
+      label: 'U-NEXTで31日間無料体験 ➔',
       url: '',
-      search: 'https://abema.tv/search?q={q}',
-      className: 'bg-[#00C4B4] hover:bg-[#1ad6c6]',
+      search: 'https://video.unext.jp/freeword?query={q}',
+      className: 'bg-[#1b1b1b] ring-1 ring-white/30 hover:bg-[#2a2a2a]',
     },
     {
       id: 'hulu',
@@ -84,11 +79,18 @@ export const CONFIG = {
       className: 'bg-[#1CE783] hover:bg-[#3ff29a] text-ink',
     },
     {
-      id: 'disney',
-      label: 'Disney+を見る ➔',
+      id: 'dmmtv',
+      label: 'DMM TVで無料体験視聴する ➔',
+      url: '',   // 例: 'https://px.a8.net/svt/ejp?a8mat=XXXXX&a8ejpredirect={url}'
+      search: 'https://tv.dmm.com/vod/list/?keyword={q}',
+      className: 'bg-[#ff2d55] hover:bg-[#ff4d6d]',
+    },
+    {
+      id: 'abema',
+      label: 'ABEMAで探す ➔',
       url: '',
-      search: 'https://www.disneyplus.com/ja-jp',   // 未ログインだと検索URLが無いので、トップへ
-      className: 'bg-[#113CCF] hover:bg-[#2a52e0]',
+      search: 'https://abema.tv/search?q={q}',
+      className: 'bg-[#00C4B4] hover:bg-[#1ad6c6]',
     },
     {
       id: 'danime',
@@ -98,18 +100,18 @@ export const CONFIG = {
       className: 'bg-[#E2571C] hover:bg-[#ee6a30]',
     },
     {
-      id: 'telasa',
-      label: 'TELASAで探す ➔',
-      url: '',
-      search: 'https://www.telasa.jp/search?q={q}',
-      className: 'bg-[#F26522] hover:bg-[#f77e42]',
-    },
-    {
       id: 'fod',
       label: 'FODで探す ➔',
       url: '',
       search: 'https://fod.fujitv.co.jp/psearch/?keyword={q}',
       className: 'bg-[#E5001C] hover:bg-[#f2192f]',
+    },
+    {
+      id: 'telasa',
+      label: 'TELASAで探す ➔',
+      url: '',
+      search: 'https://www.telasa.jp/search?q={q}',
+      className: 'bg-[#F26522] hover:bg-[#f77e42]',
     },
     {
       id: 'lemino',

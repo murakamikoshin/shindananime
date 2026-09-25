@@ -314,7 +314,7 @@ function vodButtons(w, big) {
   const wrap = el('div', 'grid gap-2');
   /* Filmarks が「実際にここで見られる」と言っている物だけ出す。
      w.vod が分からない（空）作品は、確かめようがないので今まで通り全部の中から出す。
-     どちらも config.vod の並び順（≒ 提携・優先度順）で上位だけに絞る */
+     どちらも config.vod の並び順（メジャー度順）で上位だけに絞る */
   const matched = w.vod && w.vod.length ? CONFIG.vod.filter((v) => w.vod.includes(v.id)) : CONFIG.vod;
   const list = matched.slice(0, MAX_VOD_BUTTONS);
   for (const v of list) {
