@@ -180,7 +180,9 @@ export function rank(u, works, exclude = new Set(), opts = {}) {
     if (exclude.has(w.id)) continue;
     if (minYear && w.y && w.y < minYear) continue;
     const c = cosine(u, w.v);
-    out.push({ work: w, cos: c, total: 0.82 * c + quality(w) + eraAdjust(era, w.y) + prefAdjust(p, w, flat ? 1 : c), match: matchPct(c) });
+    const total = 0.82 * c + quality(w) + eraAdjust(era, w.y) + prefAdjust(p, w, flat ? 1 : c);
+    /* 適合度は並び順と同じ total から出す。cos だけだと「82%なのに選ばれない」ように見える */
+    out.push({ work: w, cos: c, total, match: matchPct(total) });
   }
   return out.sort((x, y) => y.total - x.total);
 }

@@ -74,7 +74,7 @@ for (const list of [dm, da, hl]) {
 
 const three = pick(u({ world: -1, mood: 1 }), works, 3);
 ok(three.length === 3 && new Set(three.map((c) => c.work.id)).size === 3, '3 作は別々');
-ok(three[0].match >= three[1].match - 5, '1 作目がいちばん合う（人気の上乗せでわずかに前後してもよい）');
+ok(three[0].match >= three[1].match && three[1].match >= three[2].match, '適合度は必ず高い順（並び順と同じ total から出す）');
 ok(three.every((c) => reasons(u({ world: -1, mood: 1 }), c.work).length > 0), '理由が付く');
 
 const ex = exclusion(u({ mood: 1, taste: 1 }), works);

@@ -92,11 +92,12 @@ function axisRow(a, value) {
   const track = el('div', 'axis-track mt-1.5');
   const fill = el('div', 'axis-fill');
   track.append(fill);
-  const pct = Math.round(50 + Math.abs(value) * 50);
+  /* ちょうど 0 でも「寄り 50%」という自己矛盾した表示にはしない。最低 51% は主張する */
+  const pct = Math.max(51, Math.round(50 + Math.abs(value) * 50));
   row.append(head, track, el('p', 'mt-1 text-right text-[11px] tabular-nums text-mute',
     `${value >= 0 ? a.pos : a.neg} 寄り ${pct}%`));
   row.fill = () => {
-    const w = Math.abs(value) * 50;
+    const w = Math.max(1, Math.abs(value) * 50);
     fill.style.left = `${value >= 0 ? 50 : 50 - w}%`;
     fill.style.width = `${w}%`;
   };
