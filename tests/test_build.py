@@ -293,7 +293,7 @@ class MovieTest(unittest.TestCase):
         rows = [{'title': t, 'media': m} for t, m in [
             ('ドラえもん', 'TV'), ('映画ドラえもん のび太の恐竜', 'MOVIE'), ('名探偵コナン', 'TV'),
             ('名探偵コナン 緋色の弾丸', 'MOVIE'), ('君の名は。', 'MOVIE'), ('銀河鉄道999', 'TV'),
-            ('銀河鉄道の夜', 'MOVIE'), ('ONE PUNCH MAN', 'TV'), ('ONE PIECE FILM RED', 'MOVIE'),
+            ('銀河鉄道の夜', 'MOVIE'), ('ONE PIECE', 'TV'), ('ONE PUNCH MAN', 'TV'), ('ONE PIECE FILM RED', 'MOVIE'),
             ('劇場版 ヴァイオレット・エヴァーガーデン', 'MOVIE')]]
         keep, dropped = b.drop_series_movies(rows)
         self.assertEqual([r['title'] for r in keep if r['media'] == 'MOVIE'], ['君の名は。', '銀河鉄道の夜'])
