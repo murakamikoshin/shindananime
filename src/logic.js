@@ -33,6 +33,62 @@ export function eraAdjust(era, year) {
   return era > 0 ? -0.35 * era * age : -0.04 * era * age;
 }
 
+/* 好みの要素（追加の問題）。名前は画面に出す短い呼び方 */
+export const PREFS = {
+  love: '恋愛', gag: 'ギャグ', ensemble: '群像劇', cry: '泣ける', healing: '日常・癒し',
+  gore: 'グロ', ecchi: 'お色気', isekai: '異世界転生', sports: 'スポーツ', mecha: 'ロボット',
+  music: '音楽・アイドル', moe: '萌え絵', cg: '3DCG', kids: '子ども向け', long: '長編',
+  movie: '劇場版', short: 'ショート', popular: '話題作',
+};
+const PREF_WHY = {
+  love: '恋愛要素がしっかりある', gag: '笑える場面が多い', ensemble: 'キャラが入り乱れる群像劇',
+  cry: '思いっきり泣ける', healing: 'のんびり癒される', gore: '容赦のない描写の緊張感',
+  ecchi: 'お色気も楽しめる', isekai: '異世界転生もの', sports: '試合の熱さ', mecha: 'ロボット・メカの見せ場',
+  music: '歌と演奏が主役', moe: 'かわいい絵柄', cg: '3DCGの迫力', kids: '家族でも見られる',
+  long: 'どっぷり浸かれる長編', movie: '2時間で完結する劇場版', short: 'スキマ時間に見られる',
+  popular: 'みんなが見ている鉄板作',
+};
+
+/* 好みの要素の答え。{ love: 1, gore: -1, ... }。答えていないものは入れない */
+export function prefs(questions, answers) {
+  const out = {};
+  questions.forEach((q, i) => {
+    if (q.axis === 'pref' && typeof answers[i] === 'number') out[q.key] = answers[i];
+  });
+  return out;
+}
+
+/* 好きな要素がある作品は少し上げ、苦手な要素がある作品は強めに下げる（ほぼ避ける）。
+   上げる方は、6 軸がよく合っている作品ほど強く効かせる（好みの要素が軸を追い越さないように）。
+   「話題作」は作品の人気（p）で、隠れた名作好きなら人気作を下げる */
+export function prefAdjust(p, w, cos = 1) {
+  const fit = Math.max(0, Math.min(1, (cos - 0.5) * 2));
+  let adj = 0;
+  for (const k in p) {
+    const v = p[k];
+    if (!v) continue;
+    if (k === 'popular') { adj += 0.12 * v * ((w.p || 0) - 0.5) * 2; continue; }
+    const f = (w.f && w.f[k]) || 0;
+    adj += v > 0 ? 0.15 * v * f * fit : 0.30 * v * f;
+  }
+  return adj;
+}
+
+/* 苦手な要素（はっきり B を選んだもの）を含む作品の数。ローディングの表示用（本当に数えた数） */
+export function avoided(p, works) {
+  const keys = Object.keys(p).filter((k) => k !== 'popular' && p[k] <= -0.5);
+  const n = works.filter((w) => keys.some((k) => ((w.f && w.f[k]) || 0) >= 0.3)).length;
+  return { names: keys.map((k) => PREFS[k]), n };
+}
+
+export function prefReasons(p, w, max = 2) {
+  return Object.keys(p)
+    .filter((k) => p[k] >= 0.5 && (k === 'popular' ? (w.p || 0) >= 0.7 : ((w.f && w.f[k]) || 0) >= 0.5))
+    .sort((a, b) => p[b] * ((w.f && w.f[b]) || 1) - p[a] * ((w.f && w.f[a]) || 1))
+    .slice(0, max)
+    .map((k) => PREF_WHY[k]);
+}
+
 /* 軸ごとに回答をならす。答えていない問題は数えない */
 export function profile(questions, answers) {
   const sum = {}, n = {};
@@ -113,15 +169,18 @@ function quality(w) {
 /* 診断に使える作品だけ（軸の手がかりが少なすぎるものは外す） */
 export const usable = (works) => works.filter((w) => (w.i ?? 1) >= 0.25 && w.v.some((x) => Math.abs(x) > 0.15));
 
-/* opts.era … 画質・年代の好み（eraPref）。opts.minYear … これより前の作品は出さない（結果画面の切り替え） */
+/* opts.era … 画質・年代の好み（eraPref）。opts.minYear … これより前の作品は出さない（結果画面の切り替え）
+   opts.prefs … 好みの要素（prefs） */
 export function rank(u, works, exclude = new Set(), opts = {}) {
-  const { era = 0, minYear = 0 } = opts;
+  const { era = 0, minYear = 0, prefs: p = {} } = opts;
   const out = [];
+  /* 6 軸がどれも「どちらでもない」の人は、好みの要素をそのまま効かせる */
+  const flat = u.every((x) => Math.abs(x) < 0.1);
   for (const w of works) {
     if (exclude.has(w.id)) continue;
     if (minYear && w.y && w.y < minYear) continue;
     const c = cosine(u, w.v);
-    out.push({ work: w, cos: c, total: 0.82 * c + quality(w) + eraAdjust(era, w.y), match: matchPct(c) });
+    out.push({ work: w, cos: c, total: 0.82 * c + quality(w) + eraAdjust(era, w.y) + prefAdjust(p, w, flat ? 1 : c), match: matchPct(c) });
   }
   return out.sort((x, y) => y.total - x.total);
 }

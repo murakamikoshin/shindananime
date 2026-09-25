@@ -1,8 +1,8 @@
 /* 診断の計算を確かめる。画面は開かない。
        node tools/test.mjs */
 import { readFileSync } from 'node:fs';
-import { questions } from '../src/questions.js';
-import { AXES, eraPref, profile, typeCode, nickname, pick, reasons, exclusion, usable, cosine, franchise, sameFranchise } from '../src/logic.js';
+import { questions, CORE } from '../src/questions.js';
+import { AXES, PREFS, prefs, avoided, prefReasons, eraPref, profile, typeCode, nickname, pick, reasons, exclusion, usable, cosine, franchise, sameFranchise } from '../src/logic.js';
 
 const db = JSON.parse(readFileSync(new URL('../all_anime_db.json', import.meta.url), 'utf8'));
 const works = usable(db.works);
@@ -10,7 +10,15 @@ let bad = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('× ' + msg); bad = 1; } };
 
 /* 形 */
-ok(questions.length === 20, `質問は 20 問（いま ${questions.length}）`);
+ok(CORE === 20, `基本は 20 問（いま ${CORE}）`);
+ok(questions.length === 38, `追加を入れて 38 問（いま ${questions.length}）`);
+ok(questions.length <= 50, '50 問まで');
+const prefQs = questions.filter((q) => q.axis === 'pref');
+ok(prefQs.length === 18 && new Set(prefQs.map((q) => q.key)).size === 18, '好みの要素は 18 問、重ならない');
+ok(prefQs.every((q) => PREFS[q.key]), '好みの要素に名前がある');
+ok(questions.slice(0, CORE).every((q) => q.axis !== 'pref'), '基本の 20 問に好みの要素は入らない');
+const featKeys = new Set(db.works.flatMap((w) => Object.keys(w.f || {})));
+ok([...featKeys].every((k) => PREFS[k]), 'データの要素はどれも質問がある: ' + [...featKeys].join(','));
 ok(questions.filter((q) => q.axis === 'era').length === 2, '画質・年代は 2 問');
 for (const a of AXES) ok(questions.filter((q) => q.axis === a.key).length === 3, `${a.label} は 3 問`);
 ok(questions.every((q) => !/\[[A-Z]+\]|^質問|^\d+\./.test(q.q + q.a + q.b)), '文言に番号や [R] が残っていない');
@@ -88,6 +96,25 @@ for (const o of [{ mood: 1, taste: 1 }, { world: -1, mood: -1 }, { visual: 1, wa
   const strict = pick(uu, works, 3, new Set(), { minYear: 2018 });
   ok(strict.length === 3 && strict.every((c) => !c.work.y || c.work.y >= 2018), '放送年で絞れる');
 }
+
+/* 好みの要素 */
+const withPrefs = (o, p) => questions.map((q) => (q.axis === 'pref' ? (p[q.key] ?? 0) : (o[q.axis] ?? 0)));
+const pk = (o, p) => pick(profile(questions, withPrefs(o, p)), works, 3, new Set(), { prefs: prefs(questions, withPrefs(o, p)) });
+for (const [o, key] of [[{ mood: 1, taste: -1 }, 'gore'], [{ mood: -1, world: 1 }, 'ecchi'], [{ world: -1 }, 'isekai'], [{ mood: -1 }, 'kids']]) {
+  const got = pk(o, { [key]: -1 });
+  console.log(`苦手 ${PREFS[key]}: ${got.map((c) => c.work.t).join(' / ')}`);
+  ok(got.every((c) => ((c.work.f || {})[key] || 0) < 0.5), `苦手な「${PREFS[key]}」の作品は出ない`);
+}
+for (const [o, key] of [[{ world: 1 }, 'love'], [{ world: 1, mood: -1 }, 'sports'], [{ world: -1 }, 'mecha'], [{}, 'music']]) {
+  const base = pk(o, {}).filter((c) => ((c.work.f || {})[key] || 0) >= 0.5).length;
+  const liked = pk(o, { [key]: 1 }).filter((c) => ((c.work.f || {})[key] || 0) >= 0.5).length;
+  ok(liked >= base && liked >= 1, `好きな「${PREFS[key]}」の作品が増える（${base} → ${liked}）`);
+}
+const avgP = (l) => l.reduce((a, c) => a + (c.work.p || 0), 0) / l.length;
+ok(avgP(pk({ mood: 1 }, { popular: -1 })) <= avgP(pk({ mood: 1 }, { popular: 1 })), '隠れた名作好きには人気作が減る');
+const av = avoided({ gore: -1, ecchi: -0.5, love: 1 }, works);
+ok(av.names.join() === 'グロ,お色気' && av.n > 0, '苦手の数は本当に数えた数: ' + av.n);
+ok(prefReasons({ love: 1 }, { f: { love: 1 } })[0] === '恋愛要素がしっかりある', '好きな要素が理由に出る');
 
 /* 乱数の回答で、出番の偏り */
 let seed = 11;

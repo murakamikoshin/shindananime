@@ -120,6 +120,34 @@ TAGS = {
     '作画神':     (0, 0, -.2, -.4, 1.0, .3),
     '映像美':     (0, 0, 0, .3, 1.0, .5),
     'ショート':   (0, -.5, -.8, -.5, -.5, -1.0),
+    'グロ':       (0, 1.0, 0, -.2, .2, .2),
+    'お色気':     (0, -.3, -.5, -.4, .2, -.6),
+    '萌え':       (.3, -.6, -.4, 0, .3, -.4),
+    '3DCG':       (0, 0, 0, -.3, .4, 0),
+    '長編':       (0, 0, .2, -.2, 0, -.2),
+    '子ども向け': (0, -.8, -.7, -.5, 0, -.8),
+}
+
+# 好みの要素（タイプコードには入れない）。作品ごとに 0〜1 の強さを持たせ、
+# 画面の側で「好き / 苦手」に合わせて上げ下げする。タグ → 要素の強さ
+FEATURES = {
+    'love':     {'恋愛': 1.0, 'ラブコメ': 1.0},
+    'gore':     {'グロ': 1.0, 'ホラー': .8, '胸糞': .5, 'ダーク': .4},
+    'ecchi':    {'お色気': 1.0},
+    'long':     {'長編': 1.0},
+    'movie':    {},                     # 媒体（MOVIE）から
+    'moe':      {'萌え': 1.0},
+    'cg':       {'3DCG': 1.0},
+    'sports':   {'スポーツ': 1.0},
+    'mecha':    {'ロボット': 1.0},
+    'music':    {'音楽': 1.0, 'アイドル': 1.0},
+    'gag':      {'ギャグ': 1.0, 'ラブコメ': .4},
+    'ensemble': {'群像劇': 1.0},
+    'kids':     {'子ども向け': 1.0},
+    'cry':      {'泣ける': 1.0},
+    'healing':  {'癒し': 1.0, '日常': .6, 'グルメ': .4},
+    'isekai':   {'異世界': 1.0},
+    'short':    {'ショート': 1.0},
 }
 
 # 文章（あらすじ・レビュー）に出る言葉 → タグ。
@@ -162,6 +190,11 @@ TAG_WORDS = {
     '大人': ['大人向け', '渋い', '哀愁'],
     '作画神': ['作画', '神作画', 'ぬるぬる'],
     '映像美': ['映像美', '背景が美', '色彩', '演出が'],
+    'グロ': ['グロ', '残酷描写', '流血', 'スプラッタ', '猟奇'],
+    'お色気': ['お色気', 'エロ', 'サービスシーン', 'ハーレム', '下ネタ', 'パンチラ'],
+    '萌え': ['萌え', '美少女', '可愛い', 'かわいい', 'きらら'],
+    '3DCG': ['3DCG', 'フルCG', 'CGアニメ', '3Dアニメ'],
+    '子ども向け': ['子供向け', '子ども向け', 'ファミリー向け', 'キッズ', '親子で'],
 }
 
 # ---------------------------------------------------------------- 手元の一覧
@@ -300,7 +333,7 @@ query($seasons: [String!], $after: String) {
   searchWorks(seasons: $seasons, orderBy: {field: WATCHERS_COUNT, direction: DESC}, first: 50, after: $after) {
     pageInfo { hasNextPage endCursor }
     nodes {
-      annictId title seasonYear media watchersCount reviewsCount
+      annictId title seasonYear media watchersCount reviewsCount episodesCount
       image { recommendedImageUrl }
     }
   }
@@ -341,6 +374,7 @@ def fetch_annict(token, since=1960, until=None, session=None, limit=None, sleep=
                     'title': n['title'], 'year': n.get('seasonYear'),
                     'media': (n.get('media') or 'TV').upper(),
                     'watchers': n.get('watchersCount'), 'annict_reviews': n.get('reviewsCount'),
+                    'episodes': n.get('episodesCount'),
                     'image': ((n.get('image') or {}).get('recommendedImageUrl')) or None,
                     'annict_id': n.get('annictId'), 'sources': ['annict'],
                 })
@@ -700,6 +734,8 @@ NEG_PHRASES = [
     '伏線が回収されな', '伏線回収されな', '伏線が放置', '伏線未回収', '回収されず', '回収されな', '回収しな',
     '投げっぱなし', '爽快感がな', '爽快感はな', 'スッキリしな', 'すっきりしな', '熱くな', '燃えな',
     '考察の余地がな', '癒されな', '無双がつまらな',
+    'グロくな', 'グロはな', 'グロ描写はな', 'エロくな', 'エロはな', 'お色気はな', 'かわいくな', '可愛くな',
+    '子供向けではな', '子ども向けではな', 'CGが気にならな',
 ]
 
 
@@ -746,6 +782,26 @@ def studio_boost(studios):
     return 0.35 * best
 
 
+def features(hand, counts, media, episodes):
+    """好みの要素ごとの強さ（0〜1）。手で付けたタグは満点、文章の言葉は 4 回で満点。0 は書かない"""
+    out = {}
+    total = sum(counts.values()) or 1
+    for key, tags in FEATURES.items():
+        v = max([w for t, w in tags.items() if t in hand] + [0])
+        for t, w in tags.items():
+            n = counts.get(t, 0)
+            # 言葉は、全体の中で目立つほど強い（「かわいい」が 1 回だけでは萌え系としない）
+            if n:
+                v = max(v, w * min(1.0, n / 4) * min(1.0, 3 * n / total))
+        if key == 'movie' and media == 'MOVIE':
+            v = 1.0
+        if key == 'long' and episodes:
+            v = max(v, 1.0 if episodes >= 50 else .4 if episodes >= 26 else 0)
+        if v >= 0.1:
+            out[key] = round(v, 2)
+    return out
+
+
 def finish(rows):
     """軸・人気・表示用のタグを決めて、配る形にする"""
     out = []
@@ -782,8 +838,9 @@ def finish(rows):
             math.log10(1 + (r.get('watchers') or 0)) / math.log10(1 + 30000),
             0.75 if 'default' in r.get('sources', []) else 0.0,
         )
+        feats = features(hand, counts, media, r.get('episodes'))
         out.append({
-            't': r['title'], 'y': r.get('year'), 'm': media,
+            't': r['title'], 'y': r.get('year'), 'm': media, 'f': feats, 'ep': r.get('episodes'),
             's': r.get('score'), 'n': r.get('reviews'),
             'p': round(min(1.0, pop), 2), 'i': round(info, 2), 'v': vec,
             'g': shown[:5], 'syn': (r.get('synopsis') or '')[:110],
@@ -953,7 +1010,8 @@ def main(argv=None):
             'axes': [f'{k}:{AXIS_LETTERS[k][0]}/{AXIS_LETTERS[k][1]}' for k in AXES],
             'keys': {'t': 'タイトル', 'y': '年', 'm': '媒体', 's': 'Filmarks★（取れた作品だけ）',
                      'n': 'Filmarks のレビュー数', 'p': '人気 0〜1', 'i': '軸の手がかりの多さ 0〜1',
-                     'v': '6軸（+ が R/D/C/P/V/M）', 'g': 'タグ', 'syn': 'あらすじ（冒頭）',
+                     'v': '6軸（+ が R/D/C/P/V/M）', 'f': '好みの要素の強さ 0〜1（キーは FEATURES）',
+                     'ep': '話数（Annict）', 'g': 'タグ', 'syn': 'あらすじ（冒頭）',
                      'img': '画像', 'fm': 'Filmarks の URL', 'an': 'Annict の id',
                      'se': 'Filmarks のシリーズ id', 'vod': '配信（Filmarks 取得時点）',
                      'src': 'd=手元 a=Annict f=Filmarks'},

@@ -1,5 +1,5 @@
-import { questions } from './questions.js';
-import { AXES, ERA, eraPref, profile, typeCode, nickname, describe, pick, rank, reasons, exclusion, usable, franchise, sameFranchise } from './logic.js';
+import { questions, CORE } from './questions.js';
+import { AXES, ERA, PREFS, eraPref, prefs, avoided, prefReasons, profile, typeCode, nickname, describe, pick, rank, reasons, exclusion, usable, franchise, sameFranchise } from './logic.js';
 import { CONFIG } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -13,6 +13,8 @@ let idx = 0;
 let user = null;           // 6 軸の値
 let era = 0;               // 画質・年代の好み（+ ほど新しめ）
 let minYear = 0;           // 結果画面の「放送年」の切り替え
+let likes = {};            // 好みの要素（追加の問題）
+let extended = false;      // 追加の問題に進んだか
 let shown = [];            // [運命の1作, 次点, 次点]
 const seen = new Set();    // 「見た」と言われた作品
 
@@ -35,10 +37,13 @@ const fmt = (n) => n.toLocaleString('ja-JP');
 function renderQuestion() {
   const q = questions[idx];
   const axis = AXES.find((a) => a.key === q.axis) || ERA;
-  $('count').textContent = `${idx + 1}/${TOTAL}`;
+  const of = extended ? TOTAL : CORE;
+  $('count').textContent = `${idx + 1}/${of}`;
   $('progress').setAttribute('aria-valuenow', String(idx));
-  $('progress-fill').style.width = `${(idx / TOTAL) * 100}%`;
-  $('qaxis').textContent = axis === ERA ? `${axis.label}（タイプには入りません）` : `${axis.label}　${axis.pos} or ${axis.neg}`;
+  $('progress').setAttribute('aria-valuemax', String(of));
+  $('progress-fill').style.width = `${(idx / of) * 100}%`;
+  $('qaxis').textContent = q.axis === 'pref' ? `好みの要素：${PREFS[q.key]}（タイプには入りません）`
+    : axis === ERA ? `${axis.label}（タイプには入りません）` : `${axis.label}　${axis.pos} or ${axis.neg}`;
   $('qtext').textContent = `Q${idx + 1}. ${q.q}`;
   $('qa').textContent = q.a;
   $('qb').textContent = q.b;
@@ -60,6 +65,12 @@ function renderQuestion() {
 
 function answer(v) {
   answers[idx] = v;
+  if (idx === CORE - 1 && !extended) {
+    /* 基本の問題が終わった。結果を見るか、追加の問題で精度を上げるかを選んでもらう */
+    $('progress-fill').style.width = '100%';
+    show('more');
+    return;
+  }
   if (idx < TOTAL - 1) {
     idx += 1;
     renderQuestion();
@@ -131,13 +142,17 @@ function fillAd(boxId) {
 function startLoading() {
   user = profile(questions, answers);
   era = eraPref(questions, answers);
+  likes = prefs(questions, answers);
   /* 新しめをはっきり選んだ人は、はじめから 2010 年以降に絞っておく（結果画面で外せる） */
   minYear = era >= 0.75 ? 2010 : 0;
   const code = typeCode(user);
   const ex = exclusion(user, WORKS);
+  const answered = answers.filter((a) => typeof a === 'number').length;
+  const av = avoided(likes, WORKS);
   const lines = [
-    `> ${fmt(WORKS.length)}件のアニメデータベースと${TOTAL}の嗜好パラメータを照合中…`,
+    `> ${fmt(WORKS.length)}件のアニメデータベースと${answered}の嗜好パラメータを照合中…`,
     `> 『${ex.names[0]}』×『${ex.names[1]}』で${fmt(ex.excluded)}件を除外…`,
+    ...(av.names.length ? [`> 苦手な${av.names.map((n) => `『${n}』`).join('')}を含む${fmt(av.n)}件を後ろに回しています…`] : []),
     `> 残り${fmt(WORKS.length - ex.excluded)}件とのコサイン類似度を計算中…`,
     `> あなたのアニメタイプ【${code}】に適合する『運命の1作』を特定しました！`,
   ];
@@ -156,7 +171,7 @@ function startLoading() {
   }
 
   /* 結果は先に計算しておく（待たせるのは演出だけ） */
-  shown = pick(user, WORKS, 3, seen, { era, minYear });
+  shown = pick(user, WORKS, 3, seen, { era, minYear, prefs: likes });
 
   const log = $('loading-log');
   log.replaceChildren();
@@ -190,6 +205,16 @@ function renderResult() {
   const axes = AXES.map((a, i) => axisRow(a, user[i])).concat(axisRow(ERA, era));
   $('result-axes').replaceChildren(...axes);
 
+  const love = Object.keys(likes).filter((k) => likes[k] >= 0.5).map((k) => PREFS[k]);
+  const hate = Object.keys(likes).filter((k) => likes[k] <= -0.5).map((k) => PREFS[k]);
+  $('pref-summary').replaceChildren(...[['好き', love, 'text-hot'], ['苦手', hate, 'text-cool']]
+    .filter(([, l]) => l.length)
+    .map(([label, l, cls]) => {
+      const li = el('li');
+      li.append(el('b', cls, `${label}: `), document.createTextNode(l.join('・')));
+      return li;
+    }));
+  $('more-from-result').hidden = extended;
   renderYearChips();
   renderPicks();
   show('result');
@@ -216,7 +241,7 @@ function renderYearChips() {
     b.setAttribute('aria-pressed', String(y === minYear));
     b.addEventListener('click', () => {
       minYear = y;
-      shown = pick(user, WORKS, 3, seen, { era, minYear });
+      shown = pick(user, WORKS, 3, seen, { era, minYear, prefs: likes });
       renderYearChips();
       renderPicks();
     });
@@ -274,7 +299,7 @@ function card(c, i, big) {
 
   if (w.syn) body.append(el('p', 'text-sm leading-relaxed text-slate-300', w.syn + (w.syn.length >= 110 ? '…' : '')));
 
-  const why = reasons(user, w);
+  const why = [...reasons(user, w, 2), ...prefReasons(likes, w, 2)].slice(0, 4);
   if (why.length) {
     const r = el('div', 'rounded-2xl bg-ink/60 p-3');
     r.append(el('p', 'text-xs font-bold text-hot', 'あなたに刺さる理由'));
@@ -330,7 +355,7 @@ function replace(i) {
   seen.add(shown[i].work.id);
   const others = new Set([...seen, ...shown.map((c) => c.work.id)]);
   const taken = shown.map((c) => franchise(c.work));
-  const next = rank(user, WORKS, others, { era, minYear }).find((c) => !taken.some((g) => sameFranchise(g, franchise(c.work))));
+  const next = rank(user, WORKS, others, { era, minYear, prefs: likes }).find((c) => !taken.some((g) => sameFranchise(g, franchise(c.work))));
   if (!next) return;
   shown[i] = next;
   renderPicks();
@@ -355,6 +380,7 @@ function setupShare(code, name) {
 function reset() {
   answers = [];
   idx = 0;
+  extended = false;
   seen.clear();
   renderQuestion();
   show('quiz');
@@ -365,6 +391,15 @@ document.querySelectorAll('#qbox .choice').forEach((b) => {
 });
 $('back').addEventListener('click', () => { if (idx > 0) { idx -= 1; renderQuestion(); } });
 $('start').addEventListener('click', reset);
+function goExtended() {
+  extended = true;
+  idx = CORE;
+  renderQuestion();
+  show('quiz');
+}
+$('more-go').addEventListener('click', goExtended);
+$('more-skip').addEventListener('click', startLoading);
+$('more-from-result').addEventListener('click', goExtended);
 $('retry').addEventListener('click', reset);
 
 fetch(CONFIG.dbUrl)
@@ -376,6 +411,6 @@ fetch(CONFIG.dbUrl)
     b.disabled = false;
     b.textContent = '全アニメDBから1分で導く【運命の1作】ガチ診断';
     const day = (META.generated_at || '').slice(0, 10);
-    $('db-count').textContent = `収録 ${fmt(WORKS.length)} 作品${day ? `（${day} 更新）` : ''}・全${TOTAL}問`;
+    $('db-count').textContent = `収録 ${fmt(WORKS.length)} 作品${day ? `（${day} 更新）` : ''}・全${CORE}問（＋精度アップの${TOTAL - CORE}問）`;
   })
   .catch(() => show('error'));
