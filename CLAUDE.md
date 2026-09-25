@@ -26,8 +26,8 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 
 終わったこと
 - アプリ本体（src/）: 全50問（基本20問＋好みの要素30問、続けて1回で聞く）、6 軸のタイプコード、運命の1作＋次点2作。検査は `npm run check` で全部通る
-- Annict: 作品一覧 15,971 作。Filmarks: 全 7,246 作（`--filmarks`、1万ページ弱を約4時間で完走。止まった/競合したのも下記の通り直した）
-- `all_anime_db.json`: 6,092 作（手がかり不足で落とした 10,085）。「手がかり不足」の中身を調べたら、
+- Annict: 作品一覧 15,971 作。Filmarks: 全 7,247 作（`--filmarks --refresh-all` で2回完走。1回目は`--filmarks`のみ、2回目は画像のJSON-LD優先バグ修正を反映するための取り直し。どちらも4時間弱、エラー無し）
+- `all_anime_db.json`: 6,091 作（手がかり不足で落とした 10,086、画像あり92.5%）。「手がかり不足」の中身を調べたら、
   - ＜物語＞（全角<>）と〈物語〉（山括弧）のような、見た目が似ている別文字の括弧でタイトルが一致しない
     バグを発見・修正（`norm()` に `<>〈〉《》` を追加。2026-09-25）
   - 直せなかった分: 劇場版はFilmarksのmovieページを意図的にスクレイプしない設計（既存の仕様）、
@@ -35,11 +35,13 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
     このため劇場版（エヴァンゲリヲン新劇場版など）やAnnict単独の一部作品は、今の仕組みではデータが薄いまま
   - バグ: `load_store()` が `.splitlines()` を使っていて、あらすじ中の `U+2028`（特殊な改行文字）でも
     分割してしまい JSON が壊れることがあった。`\n` だけで割るように直した（2026-09-25）
-- アプリ・中継worker・サイトの公開は都度デプロイ済み（`shindananime.pages.dev` → `koshinstudio.com/app/shindananime/`）
+  - バグ: Filmarksの画像の多くに自社ロゴが混入（`_ld_image()`。詳細は「解決したこと」）。修正を反映するため
+    全件 `--refresh-all` で取り直し、ロゴ入りの旧パターンは89件のみに減った（2026-09-25）
+- アプリ・中継worker・サイトの公開は都度デプロイ済み（`shindananime.pages.dev` → `koshinstudio.com/app/shindananime/`）。
+  検索に出す紹介ページ `koshinstudio.com/works/shindananime/` も新設・公開済み（koshin-studio リポジトリ側）
 
-次にやること（この順で）
-1. `npm run check` → `git add data/ all_anime_db.json` → commit → push（データを初めて確定させる）
-2. ビルド → 本番デプロイ（`node tools/build.mjs && npx wrangler pages deploy dist --project-name shindananime --branch main`）
+次にやること
+- 今のところ特になし（データ確定・SEO対応まで完了。下の「決まっていないこと」だけ持ち主待ち）
 
 決まっていないこと（持ち主に聞く）
 - `data/visual_studios.tsv` に足す会社（例: マッドハウス）
