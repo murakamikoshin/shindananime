@@ -35,15 +35,59 @@
 
 ## 3. トークンを置く（git には入らない）
 
-リポジトリの直下に `.env` を作って、こう書く（`.gitignore` 済み）:
+使うトークンは 2 つ。どちらも**パスワードと同じ扱い**（人に見せない・チャットに貼らない・git に入れない）。
 
-    SCRAPEDO_TOKEN=scrape.do の管理画面のトークン
-    ANNICT_TOKEN=https://annict.com/settings/apps で作った個人用トークン
+### 3-1. scrape.do のトークンを写す
 
-読み込む:
+1. https://dashboard.scrape.do/ にログイン
+2. ダッシュボードの最初の画面に出ている **API Token**（長い英数字）の横のコピーを押す
 
-    set -a; source .env; set +a                   # Mac / Linux / Git Bash
-    # PowerShell: Get-Content .env | % { $k,$v = $_ -split '=',2; Set-Item "env:$k" $v }
+### 3-2. Annict のトークンを作る
+
+1. https://annict.com/ にログイン（アカウントが無ければ作る。無料）
+2. 右上のアイコン →「設定」→ 左の「アプリ」、または直接 https://annict.com/settings/apps を開く
+3. 「個人用アクセストークン」の方で「新規作成」（「OAuth アプリケーション」の方ではない）
+4. 説明は何でもよい（例: `shindananime`）。スコープは **読み込み専用** を選んで登録
+5. 出てきたトークンをコピーする。**この画面を閉じると二度と見られない**ので、すぐ次へ
+
+### 3-3. .env を作る
+
+VS Code の左の一覧（エクスプローラー）で `.env.example` を右クリック →「コピー」→ 同じ場所に「貼り付け」
+→ できた `.env.example のコピー` を右クリック →「名前の変更」で **`.env`** にする（先頭の点を忘れない）。
+
+ターミナルなら:
+
+    cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
+
+`.env` を開いて、= の右に貼る。**引用符も空白も要らない**:
+
+    SCRAPEDO_TOKEN=ここに scrape.do のトークン
+    ANNICT_TOKEN=ここに Annict のトークン
+
+保存する（Ctrl+S / ⌘S）。
+
+### 3-4. 入ったか確かめる
+
+    python3 build_anime_db.py --check-env
+
+こう出れば OK（トークンそのものは画面に出ない。末尾 4 文字だけ）:
+
+    SCRAPEDO_TOKEN: 入っている（32 文字・末尾 …ab12）
+    ANNICT_TOKEN: 入っている（43 文字・末尾 …9xyz）
+    Annict: 通った（あなたのユーザー名 さんのトークン）
+
+| 出たもの | 直し方 |
+|---|---|
+| 入っていない | `.env` の名前が違う（`.env.txt` になっている等）か、保存していない。Windows は「表示 → ファイル名拡張子」を入れて確かめる |
+| Annict: 通らない（401） | トークンの写し間違い。3-2 で作り直して貼り直す |
+| Annict: 確かめられない | ネットに繋がっていない、または会社などのネットで止められている |
+
+最後に、`.env` が git に入らないことを確かめる:
+
+    git status          # 一覧に .env が出てこなければよい
+
+スクリプトは `.env` を自分で読むので、ターミナルで読み込む操作は要らない。
+scrape.do のトークンが本当に通るかは、次の 4 で 1 枚取ってみれば分かる。
 
 ## 4. まず 1 枚だけ試す（大事）
 
@@ -83,7 +127,6 @@ Filmarks の画面の作りは、こちらでは確かめられていない。�
 
 ## 7. 毎期の追加（1 月・4 月・7 月・10 月）
 
-    set -a; source .env; set +a
     python3 build_anime_db.py --annict --filmarks --refresh-since 2026
     npm run check && git add data/ all_anime_db.json && git commit -m "2026 年春の新作を足す" && git push
 

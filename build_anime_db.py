@@ -669,7 +669,56 @@ def log(*a):
     print(*a, file=sys.stderr, flush=True)
 
 
+def load_dotenv(path=HERE / '.env'):
+    """.env（KEY=値 を 1 行ずつ）を読んで環境変数にする。すでに入っている値は上書きしない。
+    値の前後の空白と "" '' は外す。# で始まる行は飛ばす"""
+    path = Path(path)
+    if not path.exists():
+        return []
+    got = []
+    for line in path.read_text(encoding='utf-8-sig').splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        k, v = line.split('=', 1)
+        k = k.strip().removeprefix('export ').strip()
+        v = v.strip().strip('"').strip("'")
+        if k and v and k not in os.environ:
+            os.environ[k] = v
+            got.append(k)
+    return got
+
+
+def check_env(session=None):
+    """トークンが入っているか、Annict のトークンが通るかを見る。値そのものは出さない"""
+    ok = True
+    for k in ('SCRAPEDO_TOKEN', 'ANNICT_TOKEN'):
+        v = os.environ.get(k, '')
+        print(f'{k}: ' + (f'入っている（{len(v)} 文字・末尾 …{v[-4:]}）' if v else '入っていない'))
+        ok = ok and bool(v)
+    tok = os.environ.get('ANNICT_TOKEN')
+    if tok:
+        try:
+            if session is None:
+                import requests
+                session = requests.Session()
+            r = session.post(ANNICT_GQL, timeout=30, json={'query': '{ viewer { username } }'},
+                             headers={'Authorization': f'Bearer {tok}', 'Content-Type': 'application/json'})
+            if r.status_code == 200 and (r.json().get('data') or {}).get('viewer'):
+                print(f"Annict: 通った（{r.json()['data']['viewer']['username']} さんのトークン）")
+            else:
+                print(f'Annict: 通らない（{r.status_code}）。トークンを作り直して .env を書き直す')
+                ok = False
+        except Exception as e:  # noqa: BLE001
+            print(f'Annict: 確かめられない（{e.__class__.__name__}）。ネットに繋がっているか見る')
+            ok = False
+    return ok
+
+
 def main(argv=None):
+    loaded = load_dotenv()
+    if loaded:
+        log('.env から読んだ: ' + ', '.join(loaded))
     ap = argparse.ArgumentParser(description='all_anime_db.json を作る')
     ap.add_argument('--out', default=str(HERE / 'all_anime_db.json'))
     ap.add_argument('--annict', action='store_true', help='Annict から全作品を足す（ANNICT_TOKEN が要る）')
@@ -683,7 +732,11 @@ def main(argv=None):
     ap.add_argument('--sleep', type=float, default=1.5, help='Filmarks の間隔（秒。1.5 より短くはならない）')
     ap.add_argument('--min-info', type=float, default=0.25, help='軸を決める手がかりがこれより少ない作品は落とす')
     ap.add_argument('--probe', metavar='URL', help='Filmarks の作品ページ 1 枚だけ取って、読めた中身を見せる（何も書かない）')
+    ap.add_argument('--check-env', action='store_true', help='トークンが入っているか確かめる（値は出さない）')
     args = ap.parse_args(argv)
+
+    if args.check_env:
+        return 0 if check_env() else 1
 
     if args.probe:
         f = Fetcher(args.sleep, os.environ.get('SCRAPEDO_TOKEN'))

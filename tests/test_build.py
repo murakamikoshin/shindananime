@@ -201,6 +201,44 @@ class AnnictTest(unittest.TestCase):
         self.assertEqual(len(calls), 5, '4 シーズン + 2 頁目')
 
 
+class EnvTest(unittest.TestCase):
+    def test_dotenv(self):
+        import os
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / '.env'
+            f.write_text('\ufeff# コメント\nSCRAPEDO_TOKEN = "abc123"\nexport ANNICT_TOKEN=xyz\nEMPTY=\n', encoding='utf-8')
+            for k in ('SCRAPEDO_TOKEN', 'ANNICT_TOKEN'):
+                os.environ.pop(k, None)
+            os.environ['ANNICT_TOKEN'] = 'already'
+            try:
+                got = b.load_dotenv(f)
+                self.assertEqual(got, ['SCRAPEDO_TOKEN'])
+                self.assertEqual(os.environ['SCRAPEDO_TOKEN'], 'abc123', '引用符と空白を外す')
+                self.assertEqual(os.environ['ANNICT_TOKEN'], 'already', '入っている値は上書きしない')
+            finally:
+                os.environ.pop('SCRAPEDO_TOKEN', None)
+                os.environ.pop('ANNICT_TOKEN', None)
+
+    def test_check_env_never_prints_token(self):
+        import io, os, contextlib
+        os.environ['ANNICT_TOKEN'] = 'SECRET-TOKEN-1234'
+        os.environ['SCRAPEDO_TOKEN'] = 'SCRAPE-SECRET-9999'
+
+        class S:
+            def post(self, *a, **k):
+                return Resp(js={'data': {'viewer': {'username': 'koshin'}}})
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                self.assertTrue(b.check_env(S()))
+        finally:
+            os.environ.pop('ANNICT_TOKEN'); os.environ.pop('SCRAPEDO_TOKEN')
+        text = out.getvalue()
+        self.assertNotIn('SECRET-TOKEN', text)
+        self.assertNotIn('SCRAPE-SECRET', text)
+        self.assertIn('koshin', text)
+
+
 class MergeTest(unittest.TestCase):
     def test_defaults_are_500_with_known_tags(self):
         d = b.load_defaults()
