@@ -35,13 +35,10 @@ const fmt = (n) => n.toLocaleString('ja-JP');
 /* ------------------------------------------------------------ 質問 */
 function renderQuestion() {
   const q = questions[idx];
-  const axis = AXES.find((a) => a.key === q.axis) || ERA;
   $('count').textContent = `${idx + 1}/${TOTAL}`;
   $('progress').setAttribute('aria-valuenow', String(idx));
   $('progress').setAttribute('aria-valuemax', String(TOTAL));
   $('progress-fill').style.width = `${(idx / TOTAL) * 100}%`;
-  $('qaxis').textContent = q.axis === 'pref' ? `好みの要素：${PREFS[q.key]}（タイプには入りません）`
-    : axis === ERA ? `${axis.label}（タイプには入りません）` : `${axis.label}　${axis.pos} or ${axis.neg}`;
   $('qtext').textContent = `Q${idx + 1}. ${q.q}`;
   $('qa').textContent = q.a;
   $('qb').textContent = q.b;
@@ -311,11 +308,15 @@ function fill(tpl, q, url) {
   return tpl.replaceAll('{q}', encodeURIComponent(q)).replaceAll('{url}', encodeURIComponent(url || ''));
 }
 
+const MAX_VOD_BUTTONS = 3;   // サービスを増やしても、カードが縦に伸びすぎないように絞る
+
 function vodButtons(w, big) {
   const wrap = el('div', 'grid gap-2');
   /* Filmarks が「実際にここで見られる」と言っている物だけ出す。
-     w.vod が分からない（空）作品は、確かめようがないので今まで通り全部出す */
-  const list = w.vod && w.vod.length ? CONFIG.vod.filter((v) => w.vod.includes(v.id)) : CONFIG.vod;
+     w.vod が分からない（空）作品は、確かめようがないので今まで通り全部の中から出す。
+     どちらも config.vod の並び順（≒ 提携・優先度順）で上位だけに絞る */
+  const matched = w.vod && w.vod.length ? CONFIG.vod.filter((v) => w.vod.includes(v.id)) : CONFIG.vod;
+  const list = matched.slice(0, MAX_VOD_BUTTONS);
   for (const v of list) {
     const plain = fill(v.search, w.t);
     const a = el('a', `flex items-center justify-center gap-2 rounded-2xl px-4 font-black text-white transition ${big ? 'py-4 text-base' : 'py-3 text-sm'} ${v.className || 'bg-white/10'}`);

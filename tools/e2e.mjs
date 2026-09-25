@@ -111,7 +111,7 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
 
   /* 配信ボタンは、その作品が実際にあるサービスの数だけ出る（0〜12個。w.vod が分からなければ全部） */
   const vod = await page.$$eval('#fate a[data-vod]', (as) => as.map((a) => [a.textContent, a.rel, a.href]));
-  ok(vod.length >= 1 && vod.length <= 12, `配信ボタンは1〜12個（いま ${vod.length}）`);
+  ok(vod.length >= 1 && vod.length <= 3, `配信ボタンは1〜3個（いま ${vod.length}）`);
   ok(vod.every(([label]) => /➔$/.test(label)), 'ボタンの文言: ' + vod.map(([l]) => l).join(','));
   ok(vod.every(([, rel]) => !rel.includes('sponsored')), '提携リンクを入れていなければ sponsored は付かない');
   ok(!(await page.content()).includes('googlesyndication'), '広告を有効にしていなければ script を読まない');

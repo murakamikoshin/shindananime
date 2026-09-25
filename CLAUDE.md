@@ -54,7 +54,8 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 - バグ: 「見た → 別の作品にする」がその枠だけ差し替えていて、次点を繰り上げていなかった（適合度の並び順とズレる）。`replace()` を `pick()` の再計算に統一して、次点が繰り上がるようにした（2026-09-25、`src/app.js`）
 - 好みの要素を 18 → 30 問に増やして全50問に（舞台・ジャンル・トーンで12問追加。`school/fantasy/scifi/historical/modern/horror/mystery/adventure/hotblood/family/work/mature`）。`build_anime_db.py` の `FEATURES` にも対応するタグを追加。基本20問との二段階（「もっと絞り込む？」画面）はやめて、常に50問を続けて聞く作りに統一（2026-09-25）
 - バグ: 質問を増やしたことで、片方ばかり選ぶと `total`（cos + quality + era + 好み）が 1 を超えて、複数の作品が match 100% に張り付き「同じ系統でもニュアンスが違う」はずの差が消えた。`quality()` の上乗せを控えめに（最大 0.18→0.126）、`prefAdjust()` の合計に上限（±0.08）を付けて緩和した。普通の（極端でない）回答では元々十分な差が出る（2026-09-25、`src/logic.js`）
-- バグ: 配信ボタン（DMM TV / U-NEXT）が、その作品が実際にそのサービスにあるかを見ずに毎回出ていて、無い場合に検索結果が空になっていた。`w.vod`（Filmarks が持っている実際の配信状況）でボタンを絞り込むように直した。`w.vod` が分からない作品は今まで通り全部出す（2026-09-25、`src/app.js` の `vodButtons`）。あわせて、Prime Video・Netflix・ABEMA・Hulu・Disney+・dアニメストア・TELASA・FOD・Lemino・バンダイチャンネルの10サービスを追加（`src/config.js`、`build_anime_db.py` の `VOD_NAMES`）。検索URLは実際にブラウザで確かめた。Disney+とバンダイチャンネルは検索URLの形が確かめられなかったので、トップページへのリンクにしてある（アフィリエイトは全部未提携。決まったら `url` を埋める）
+- バグ: 配信ボタン（DMM TV / U-NEXT）が、その作品が実際にそのサービスにあるかを見ずに毎回出ていて、無い場合に検索結果が空になっていた。`w.vod`（Filmarks が持っている実際の配信状況）でボタンを絞り込むように直した。`w.vod` が分からない作品は今まで通り全部の中から出す（2026-09-25、`src/app.js` の `vodButtons`）。あわせて、Prime Video・Netflix・ABEMA・Hulu・Disney+・dアニメストア・TELASA・FOD・Lemino・バンダイチャンネルの10サービスを追加（`src/config.js`、`build_anime_db.py` の `VOD_NAMES`）。検索URLは実際にブラウザで確かめた。Disney+とバンダイチャンネルは検索URLの形が確かめられなかったので、トップページへのリンクにしてある（アフィリエイトは全部未提携。決まったら `url` を埋める）。サービスが増えてカードが縦に伸びすぎるので、`MAX_VOD_BUTTONS = 3` で上位3つに絞る
+- 質問画面の「世界観　R or F」のような軸の札（`qaxis`）は不要という指摘で削除（2026-09-25、`src/index.html` / `src/app.js`）
 
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束
