@@ -12,13 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_anime_db as b  # noqa: E402
 
 DETAIL = '''<html><head>
+<meta property="og:title" content="アニメ『{title}』の感想・レビュー[{count}件] | Filmarks">
+<meta property="og:description" content="レビュー数：{count}件 ／ 平均スコア：★★★★{score}点">
 <meta property="og:image" content="https://img.example/{n}.jpg">
-<script type="application/ld+json">{{"name":"{title}","aggregateRating":{{"ratingValue":"{score}","ratingCount":"{count}"}},"dateCreated":"{year}-04-01"}}</script>
+<script type="application/ld+json">{{"@context":["http://schema.org/",{{"title":"name","releaseDate":"datePublished","outline":"description"}}],"@type":"{kind}","title":"{title}","outline":"{syn}","releaseDate":"{year}-09-29T21:00:00+09:00"}}</script>
+<script type="application/ld+json">{{"@context":"http://schema.org","@type":"BreadcrumbList","itemListElement":[]}}</script>
 </head><body>
-<div class="p-content-detail__synopsis-desc">{syn}</div>
-<div class="p-mark__review">伏線の回収がすごい。考察がはかどる。作画も神作画</div>
-<div class="p-mark__review">絶望と復讐。救いがない</div>
-<div class="p-content-detail-related-info"><img alt="U-NEXT"><img alt="DMM TV"></div>
+<h2 class="p-content-detail__title"><span>{title}</span> （ {year}年 製作のアニメ）</h2>
+<div class="p-content-detail__primary-info"><h3>公開日：{year}年09月29日</h3> 製作国・地域： 日本 制作会社： {studio} 再生時間：{minutes}分</div>
+<div class="c2-rating-l"><div class="c2-rating-l__text">{score}</div></div>
+<div class="p-content-detail__synopsis"><h3 class="p-content-detail__synopsis-term">あらすじ</h3></div>
+<div class="p-content-detail-related-info"><div class="p-content-detail-related-info__box-vod-services">
+  <div class="c2-list-vod__content-header-text-title">U-NEXT</div><div class="c2-list-vod__content-header-text-title">DMM TV</div></div></div>
+<div class="p-mark-histogram__total-count">{count}件のレビュー</div>
+<div class="p-mark"><div class="c-rating__score">3.1</div><div class="p-mark-review">伏線の回収がすごい。考察がはかどる。神作画</div></div>
+<div class="p-mark"><div class="c-rating__score">2.0</div><div class="p-mark-review">絶望と復讐。救いがない</div></div>
 </body></html>'''
 
 
@@ -63,11 +71,11 @@ class FakeFilmarks:
         if '/search/animes?q=' in url:
             return Resp('<a href="/animes/10/20?mark_id=1">進撃の巨人</a><a href="/animes/11/21">x</a>')
         if url.endswith('/animes/10/20'):
-            return Resp(DETAIL.format(n=10, title='進撃の巨人', score='4.3', count='123,456', year=2013,
-                                      syn='壁の外の巨人と戦う。'))
+            return Resp(DETAIL.format(n=10, title='進撃の巨人', score='4.3', count='123456', year=2013, kind='TVSeason',
+                                      syn='壁の外の巨人と戦う。人類は壁の中で暮らしていた。', studio='WIT STUDIO', minutes=24))
         if url.endswith('/animes/11/21'):
-            return Resp(DETAIL.format(n=11, title='まだ知らないアニメ', score='3.8', count='900', year=2024,
-                                      syn='東京の高校に通う少年が、ある事件の真相を追う。'))
+            return Resp(DETAIL.format(n=11, title='まだ知らないアニメ', score='3.8', count='900', year=2024, kind='Movie',
+                                      syn='東京の高校に通う少年が、ある事件の真相を追う。', studio='どこか', minutes=5))
         return Resp('', 404)
 
 
@@ -97,7 +105,15 @@ class FilmarksTest(unittest.TestCase):
         got = self.crawl(s)
         self.assertEqual([g['title'] for g in got], ['進撃の巨人', 'まだ知らないアニメ'])
         a = got[0]
-        self.assertEqual((a['score'], a['reviews'], a['year'], a['series']), (4.3, 123456, 2013, 10))
+        self.assertEqual((a['score'], a['reviews'], a['year'], a['series']), (4.3, 123456, 2013, 10),
+                         '作品の★（レビューした人の★ 3.1 ではない）・レビュー数・年')
+        self.assertEqual(a['synopsis'], '壁の外の巨人と戦う。人類は壁の中で暮らしていた。', '見出しの「あらすじ」ではなく本文')
+        self.assertEqual((a['media'], a['studios'], a['minutes']), ('TV', ['WIT STUDIO'], 24))
+        self.assertEqual(got[1]['media'], 'MOVIE')
+        works = {w['t']: w for w in b.finish(b.merge([], [], got))}
+        self.assertIn('short', works['まだ知らないアニメ']['f'], '1 話 10 分以下はショート')
+        self.assertNotIn('short', works['進撃の巨人']['f'])
+        self.assertGreater(works['進撃の巨人']['p'], 0.9, 'レビュー数 12 万 → 人気が高い')
         self.assertEqual(a['vod'], ['unext', 'dmmtv'])
         self.assertFalse(any('movies' in u for u in s.asked), '映画の sitemap にも頁にも行かない')
 

@@ -473,13 +473,17 @@ FM_DETAIL = re.compile(r'^https?://filmarks\.com/animes/(\d+)/(\d+)/?$')
 FM_LIST_PATHS = ['/list-anime/popular', '/list-anime/trend']
 FM_LIST_PAGES = 400
 SEL = {
+    # 2026 年 9 月の Filmarks に合わせてある（--probe-debug で確かめた）。
+    # 作品の★は c2-rating-l。c-rating__score はレビューを書いた人の★なので使わない
     'title': ['h2.p-content-detail__title span', 'h2.p-content-detail__title', 'h1'],
-    'score': ['.p-content-detail__main .c-rating__score', '.c-rating__score'],
-    'synopsis': ['.p-content-detail__synopsis-desc', '.p-content-detail__synopsis',
-                 '#js-content-detail-synopsis'],
-    'review': ['.p-mark__review', '.c-content-card__review', '.p-mark-review'],
-    'vod': ['.p-content-detail-related-info', '.p-content-detail__vod', '.c-vod'],
-    'year': ['.p-content-detail__other-info', '.p-content-detail__info'],
+    'score': ['.p-content-detail__main .c2-rating-l__text', '.c2-rating-l__text',
+              '.p-mark-histogram__top .c2-rating-s__text'],
+    'reviews': ['.p-mark-histogram__total-count'],
+    'synopsis': ['.p-content-detail__synopsis-desc', '#js-content-detail-synopsis'],
+    'info': ['.p-content-detail__primary-info'],
+    'review': ['.p-mark-review'],
+    'vod': ['.p-content-detail-related-info__box-vod-services', '.p-content-detail-related-info'],
+    'year': ['.p-content-detail__primary-info', 'h2.p-content-detail__title'],
 }
 VOD_NAMES = {
     'unext': ['U-NEXT', 'U‐NEXT', 'UNEXT'], 'dmmtv': ['DMM TV', 'DMMTV'],
@@ -560,9 +564,17 @@ def _meta(soup, prop):
     return (el.get('content') or '').strip() if el else ''
 
 
+def _num(raw, cast=float):
+    try:
+        return cast(str(raw).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_filmarks(html, url):
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
+    # JSON-LD。Filmarks は name を title、description を outline、datePublished を releaseDate と呼んでいる
     ld = {}
     for s in soup.find_all('script', type='application/ld+json'):
         try:
@@ -570,47 +582,65 @@ def parse_filmarks(html, url):
         except (TypeError, ValueError):
             continue
         for x in (d if isinstance(d, list) else [d]):
-            if isinstance(x, dict) and x.get('name') and not ld:
+            if isinstance(x, dict) and x.get('@type') != 'BreadcrumbList' and (x.get('title') or x.get('name')) and not ld:
                 ld = x
+    og_title = _meta(soup, 'og:title')
+    og_desc = _meta(soup, 'og:description')
     t_el = _first(soup, SEL['title'])
-    title = (ld.get('name') or (t_el.get_text(strip=True) if t_el else '')
-             or _meta(soup, 'og:title').split('|')[0].split(' - ')[0].strip())
+    title = (ld.get('title') or ld.get('name')
+             or (re.sub(r'\s*（.*?製作のアニメ）\s*$', '', t_el.get_text(' ', strip=True)) if t_el else '')
+             or (re.search(r'『(.+?)』', og_title) or [None, ''])[1])
     if not title:
         return None
-    agg = ld.get('aggregateRating') or {}
-    score = None
-    s_el = _first(soup, SEL['score'])
-    for raw in (agg.get('ratingValue'), s_el.get_text(strip=True) if s_el else None):
-        try:
-            score = round(float(raw), 1)
-            if score > 0:
-                break
-            score = None
-        except (TypeError, ValueError):
-            continue
-    reviews = None
-    for raw in (agg.get('ratingCount'), agg.get('reviewCount')):
-        try:
-            reviews = int(str(raw).replace(',', ''))
-            break
-        except (TypeError, ValueError):
-            continue
+
+    # ★と レビュー数。og:description「レビュー数：43037件 ／ 平均スコア：★★★★4.3点」が一番確か
+    score = _num((re.search(r'平均スコア：[★☆]*\s*([\d.]+)点', og_desc) or [None, None])[1])
+    if score is None:
+        agg = ld.get('aggregateRating') or {}
+        s_el = _first(soup, SEL['score'])
+        score = _num(agg.get('ratingValue')) or _num(s_el.get_text(strip=True) if s_el else None)
+    if score is not None and not (0 < score <= 5):
+        score = None
+    reviews = _num((re.search(r'レビュー数：([\d,]+)件', og_desc) or [None, None])[1], int)
+    if reviews is None:
+        r_el = _first(soup, SEL['reviews'])
+        reviews = _num((re.search(r'([\d,]+)件', r_el.get_text()) or [None, None])[1] if r_el else None, int)
+
+    # あらすじ。見出しの「あらすじ」だけを拾わないように、短すぎるものは捨てる
     syn_el = _first(soup, SEL['synopsis'])
-    synopsis = (syn_el.get_text(' ', strip=True) if syn_el else '') or _meta(soup, 'og:description')
-    texts = [el.get_text(' ', strip=True) for s in SEL['review'] for el in soup.select(s)]
-    vod_text = ' '.join([el.get_text(' ', strip=True) for s in SEL['vod'] for el in soup.select(s)]
-                        + [img.get('alt', '') for s in SEL['vod'] for el in soup.select(s)
-                           for img in el.find_all('img')])
-    year = None
-    raw = ld.get('dateCreated') or ld.get('datePublished') or ''
-    y_el = _first(soup, SEL['year'])
-    m = re.search(r'(19[5-9]\d|20\d{2})', raw or (y_el.get_text(' ', strip=True) if y_el else ''))
+    synopsis = ld.get('outline') or ld.get('description') or (syn_el.get_text(' ', strip=True) if syn_el else '')
+    if len(synopsis) < 15:
+        synopsis = ''
+
+    # 公開日・制作会社・再生時間（「公開日：2023年09月29日 製作国・地域： 日本 制作会社： マッドハウス 再生時間：24分」）
+    i_el = _first(soup, SEL['info'])
+    info = i_el.get_text(' ', strip=True) if i_el else ''
+    studios = []
+    m = re.search(r'制作会社：\s*(.+?)\s*(?:再生時間：|製作国|公開日：|$)', info)
     if m:
-        year = int(m.group(1))
+        studios = [x.strip() for x in re.split(r'[、,／/]', m.group(1)) if x.strip()]
+    minutes = _num((re.search(r'再生時間：\s*(\d+)\s*分', info) or [None, None])[1], int)
+
+    year = None
+    for raw in (ld.get('releaseDate'), ld.get('startDate'), ld.get('datePublished'), ld.get('dateCreated'),
+                (ld.get('animeSeries') or {}).get('startDate') if isinstance(ld.get('animeSeries'), dict) else None,
+                info, (_first(soup, SEL['year']) or soup.new_tag('x')).get_text(' ', strip=True)):
+        m = re.search(r'(19[5-9]\d|20\d{2})', raw or '')
+        if m:
+            year = int(m.group(1))
+            break
+
+    kind = str(ld.get('@type') or '')
+    media = 'MOVIE' if 'Movie' in kind else 'TV' if kind else None
+
+    texts = [el.get_text(' ', strip=True) for s in SEL['review'] for el in soup.select(s)]
+    vod_el = _first(soup, SEL['vod'])
+    vod_text = ((vod_el.get_text(' ', strip=True) + ' ' + ' '.join(img.get('alt', '') for img in vod_el.find_all('img')))
+                if vod_el else '')
     mm = FM_DETAIL.match(url.rstrip('/'))
     return {
-        'title': title, 'year': year, 'score': score, 'reviews': reviews,
-        'synopsis': synopsis,
+        'title': title, 'year': year, 'media': media, 'score': score, 'reviews': reviews,
+        'synopsis': synopsis, 'studios': studios, 'minutes': minutes,
         # レビュー本文そのものは持たない（重い・他人の文章）。言葉の数だけ残す
         'counts': text_tags(' '.join([title, synopsis] + texts)),
         'fetched_at': dt.date.today().isoformat(),
@@ -846,6 +876,8 @@ def finish(rows):
         counts = dict(text_tags(' '.join([r.get('title') or '', r.get('synopsis') or ''])))
         for t, n in (r.get('counts') or {}).items():   # Filmarks で数えたもの（レビュー込み）が勝つ
             counts[t] = max(counts.get(t, 0), n)
+        if (r.get('minutes') or 99) <= 10:   # 1 話 10 分以下はショートアニメ（Filmarks の再生時間）
+            counts['ショート'] = max(counts.get('ショート', 0), 4)
         hand = [t for t in r.get('tags', []) if t in TAGS]
         if hand:
             # 手で付けたタグを主に、文章の言葉を少しだけ混ぜる
