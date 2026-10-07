@@ -56,15 +56,29 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   const core = [1, 1, 0.5, 1, 1, 0.5, 1, 1, 1, 1, 1, 0.5, 1, 0.5, 1, 1, 1, 0, 1, 1];
   const prefExtra = { 20: 1, 25: -1, 26: -1 };
   const pattern = core.concat(Array.from({ length: TOTAL - core.length }, (_, i) => prefExtra[core.length + i] ?? 0));
-  for (let i = 0; i < pattern.length; i++) {
-    ok((await page.textContent('#count')).trim() === `${i + 1}/${TOTAL}`, `${i + 1}/${TOTAL} の数え方`);
+  /* 出す順は app.js と同じ: 前半 12 問は 6 軸 × 2 問を軸ごとに回し、残りは元の並び */
+  const axisKeys = [...new Set(questions.map((q) => q.axis))].filter((k) => k !== 'era' && k !== 'pref');
+  const byAxis = axisKeys.map((k) => questions.map((q, i) => i).filter((i) => questions[i].axis === k));
+  const quick = [0, 1].flatMap((k) => byAxis.map((l) => l[k]));
+  const order = quick.concat(questions.map((q, i) => i).filter((i) => !quick.includes(i)));
+  const QUICK = quick.length;
+  ok(QUICK === 12, `前半は 12 問（いま ${QUICK}）`);
+  for (let i = 0; i < order.length; i++) {
+    const total = i < QUICK ? QUICK : TOTAL;
+    ok((await page.textContent('#count')).trim() === `${i + 1}/${total}`, `${i + 1}/${total} の数え方`);
     if (phone && i === 3) await shot(page, 'quiz');
     if (i === 5) {
       await page.click('#back');
-      ok((await page.textContent('#count')).trim() === `5/${TOTAL}`, '戻る');
-      await page.click(`#qbox .choice[data-v="${pattern[4]}"]`);
+      ok((await page.textContent('#count')).trim() === `5/${QUICK}`, '戻る');
+      await page.click(`#qbox .choice[data-v="${pattern[order[4]]}"]`);
     }
-    await page.click(`#qbox .choice[data-v="${pattern[i]}"]`);
+    await page.click(`#qbox .choice[data-v="${pattern[order[i]]}"]`);
+    if (i === QUICK - 1) {
+      await page.waitForSelector('#checkpoint:not([hidden])');
+      ok(await page.isVisible('#see-result') && await page.isVisible('#more'), '12 問のあとに分かれ道が出る');
+      if (phone) await shot(page, 'checkpoint');
+      await page.click('#more');
+    }
   }
 
   const t0 = Date.now();
@@ -137,7 +151,17 @@ for (const vp of [{ width: 390, height: 844, name: 'phone' }, { width: 1280, hei
   ok(after === runners[0], '見た → 次点1が運命の1作に繰り上がる: ' + after + ' ≠ ' + runners[0]);
 
   await page.click('#retry');
-  ok((await page.textContent('#count')).trim() === `1/${TOTAL}`, 'もう一度');
+  ok((await page.textContent('#count')).trim() === `1/${QUICK}`, 'もう一度（前半は 12 問から）');
+
+  /* 12 問だけで結果を見る。軸は決まり、「もっと精度を上げる」で 13 問目へ続く */
+  for (let i = 0; i < QUICK; i++) await page.click(`#qbox .choice[data-v="${pattern[order[i]]}"]`);
+  await page.waitForSelector('#checkpoint:not([hidden])');
+  await page.click('#see-result');
+  await page.waitForSelector('#result:not([hidden])', { timeout: 15000 });
+  ok(/^[A-Z]{4}-[A-Z]{2}$/.test((await page.textContent('#type-code')).trim()), '12 問だけでもタイプコードが出る');
+  ok(await page.isVisible('#refine'), '12 問だけの人には「もっと精度を上げる」が出る');
+  await page.click('#refine');
+  ok((await page.textContent('#count')).trim() === `13/${TOTAL}`, '「もっと精度を上げる」で 13 問目から続く');
   ok(errors.length === 0, `${vp.name}: エラー ${errors.join(' | ')}`);
   await page.close();
 }

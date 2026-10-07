@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>【運命の1作】ガチアニメ診断 — 50問でわかるあなたのアニメタイプ | Koshin Studio</title>
+<title>【運命の1作】ガチアニメ診断 — 12問からわかるあなたのアニメタイプ | Koshin Studio</title>
 <meta name="description" content="50の質問から6つの軸・画質や年代の好み・好みの要素であなたのアニメタイプ（例: RDCP-VM）と二つ名を割り出し、アニメのデータベース全体から「運命の1作」と次点2作を選びます。">
 <!-- 検索に出すのは koshinstudio.com/works/shindananime/ の方。実物は拾わせない -->
 <meta name="robots" content="noindex, follow">
 <meta property="og:title" content="【運命の1作】ガチアニメ診断">
-<meta property="og:description" content="50問で、あなたのアニメタイプと、今いちばん刺さる運命の1作を。">
+<meta property="og:description" content="12問から、あなたのアニメタイプと、今いちばん刺さる運命の1作を。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://koshinstudio.com/app/shindananime/">
 <meta property="og:site_name" content="Koshin Studio">
@@ -43,8 +43,8 @@
       あなたに今<br>いちばん刺さる<br><span class="grad-text">運命の1作</span>を。
     </h1>
     <p class="mt-5 leading-relaxed text-slate-300">
-      全50問。<b class="text-white">6つの軸</b>と画質・年代の好み、恋愛・グロ・異世界転生などの好みの要素から、あなたのアニメタイプ（例: <b class="text-sun">RDCP-VM</b>）と二つ名を割り出し、
-      データベースの全作品と照らし合わせて選びます。
+      まず12問。<b class="text-white">6つの軸</b>からあなたのアニメタイプ（例: <b class="text-sun">RDCP-VM</b>）と二つ名を割り出し、
+      データベースの全作品と照らし合わせて選びます。続けて答えれば（最大50問）、画質・年代の好みや、恋愛・グロ・異世界転生などの好みの要素まで合わせて選べます。
     </p>
     <ul class="mt-6 grid grid-cols-3 gap-2 text-center text-xs text-mute sm:grid-cols-6" aria-label="6つの軸">
       <li class="rounded-lg border border-line bg-panel/70 px-1 py-2"><b class="block text-base text-white">R/F</b>世界観</li>
@@ -91,6 +91,18 @@
 
       <button type="button" data-v="0" class="choice mt-3 w-full rounded-xl border border-line px-2 py-3 text-sm text-slate-300 hover:border-sun hover:text-white">どちらともいえない</button>
     </div>
+  </main>
+
+  <!-- 2.5 12問のあと -->
+  <main id="checkpoint" data-screen hidden class="flex flex-1 flex-col justify-center py-8">
+    <p class="text-sm font-bold tracking-[.3em] text-hot">12問、おつかれさまでした</p>
+    <h2 class="mt-3 text-3xl font-black leading-tight">ここまでで、<br><span class="grad-text">タイプはもう出せます。</span></h2>
+    <p class="mt-5 leading-relaxed text-slate-300">
+      6つの軸は、ここまでの答えで決まっています。残り38問は、画質・年代の好みと、恋愛・グロ・異世界転生などの好みの要素。答えるほど、選ばれる作品があなたの好みに寄ります。
+    </p>
+    <button id="see-result" type="button" class="mt-8 w-full rounded-2xl bg-gradient-to-r from-hot to-cool px-5 py-4 text-lg font-black leading-snug text-white shadow-lg shadow-hot/20 transition hover:brightness-110 active:scale-[.99]">結果を見る</button>
+    <button id="more" type="button" class="mt-3 w-full rounded-2xl border border-line px-5 py-4 font-bold hover:border-white">もっと精度を上げる（残り38問・約2分）</button>
+    <button id="checkpoint-back" type="button" class="mt-3 text-sm text-mute hover:text-white">← 12問目に戻る</button>
   </main>
 
   <!-- 3. 解析中 -->
@@ -148,6 +160,11 @@
     <h2 class="mt-12 text-lg font-black">惜しくも次点だったおすすめ2選</h2>
     <ol id="runners" class="mt-4 grid gap-5"></ol>
     <p class="mt-3 text-xs text-mute">見たことがある作品は「見た」を押すと、次に合う作品と入れ替えます。</p>
+
+    <section id="refine-box" class="mt-10 rounded-2xl border border-line bg-panel/70 p-4 text-center" hidden>
+      <p class="text-sm text-slate-300">12問の答えで選んだ結果です。残り38問に答えると、画質・年代や好みも合わせて選び直します。</p>
+      <button id="refine" type="button" class="mt-3 w-full rounded-2xl border border-line px-6 py-3 font-bold hover:border-white">もっと精度を上げる（残り38問）</button>
+    </section>
 
     <section class="mt-10 grid gap-3">
       <button id="share-native" type="button" class="rounded-2xl border border-line px-6 py-3 font-bold hover:border-white">結果の画像で送る</button>

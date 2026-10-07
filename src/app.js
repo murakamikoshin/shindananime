@@ -4,12 +4,24 @@ import { CONFIG } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const TOTAL = questions.length;
+
+/* 質問を出す順。回答は元の番号で持つので、計算（logic.js）は触らない。
+     前半 QUICK 問: 6 軸 × 2 問を、軸ごとに回して聞く。ここまでで結果を出せる
+     後半: 残りの軸 6 問 → 画質・年代 2 問 → 好みの要素 30 問（元の並びのまま） */
+const QUICK = AXES.length * 2;
+const order = (() => {
+  const byAxis = AXES.map((a) => questions.map((q, i) => i).filter((i) => questions[i].axis === a.key));
+  const quick = [0, 1].flatMap((k) => byAxis.map((l) => l[k]));
+  return quick.concat(questions.map((q, i) => i).filter((i) => !quick.includes(i)));
+})();
+const lastIdx = () => (extended ? TOTAL : QUICK) - 1;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let META = {};
 let WORKS = [];            // 診断に使える作品
-let answers = [];
-let idx = 0;
+let answers = [];          // 回答。questions の添字（元の番号）で持つ
+let idx = 0;               // いま何番目の質問か（order の位置）
+let extended = false;      // 12 問のあと、残りも答える選択をしたか
 let user = null;           // 6 軸の値
 let era = 0;               // 画質・年代の好み（+ ほど新しめ）
 let minYear = 0;           // 結果画面の「放送年」の切り替え
@@ -34,18 +46,20 @@ const fmt = (n) => n.toLocaleString('ja-JP');
 
 /* ------------------------------------------------------------ 質問 */
 function renderQuestion() {
-  const q = questions[idx];
-  $('count').textContent = `${idx + 1}/${TOTAL}`;
+  const qi = order[idx];
+  const q = questions[qi];
+  const total = lastIdx() + 1;
+  $('count').textContent = `${idx + 1}/${total}`;
   $('progress').setAttribute('aria-valuenow', String(idx));
-  $('progress').setAttribute('aria-valuemax', String(TOTAL));
-  $('progress-fill').style.width = `${(idx / TOTAL) * 100}%`;
+  $('progress').setAttribute('aria-valuemax', String(total));
+  $('progress-fill').style.width = `${(idx / total) * 100}%`;
   $('qtext').textContent = `Q${idx + 1}. ${q.q}`;
   $('qa').textContent = q.a;
   $('qb').textContent = q.b;
   $('back').disabled = idx === 0;
 
   document.querySelectorAll('#qbox .choice').forEach((b) => {
-    const on = answers[idx] === Number(b.dataset.v);
+    const on = answers[qi] === Number(b.dataset.v);
     b.setAttribute('aria-pressed', String(on));
     b.classList.toggle('ring-2', on);
     b.classList.toggle('ring-sun', on);
@@ -59,14 +73,25 @@ function renderQuestion() {
 }
 
 function answer(v) {
-  answers[idx] = v;
-  if (idx < TOTAL - 1) {
+  answers[order[idx]] = v;
+  if (idx < lastIdx()) {
     idx += 1;
     renderQuestion();
+  } else if (!extended) {
+    /* 12 問が終わった。ここで結果を見るか、残りも答えるかを選んでもらう */
+    show('checkpoint');
   } else {
     $('progress-fill').style.width = '100%';
     startLoading();
   }
+}
+
+/* 残りの質問へ進む（12 問のあとの画面からも、結果画面からも来る） */
+function continueQuiz() {
+  extended = true;
+  idx = QUICK;
+  renderQuestion();
+  show('quiz');
 }
 
 /* ------------------------------------------------------------ 軸のバー */
@@ -208,6 +233,7 @@ function renderResult() {
     }));
   renderYearChips();
   renderPicks();
+  $('refine-box').hidden = extended;
   show('result');
   fillAd('ad-top');
   requestAnimationFrame(() => requestAnimationFrame(() => axes.forEach((r) => r.fill())));
@@ -560,6 +586,7 @@ async function buildShareImage(code, name) {
 function reset() {
   answers = [];
   idx = 0;
+  extended = false;
   seen.clear();
   renderQuestion();
   show('quiz');
@@ -570,6 +597,10 @@ document.querySelectorAll('#qbox .choice').forEach((b) => {
 });
 $('back').addEventListener('click', () => { if (idx > 0) { idx -= 1; renderQuestion(); } });
 $('start').addEventListener('click', reset);
+$('see-result').addEventListener('click', startLoading);
+$('more').addEventListener('click', continueQuiz);
+$('refine').addEventListener('click', continueQuiz);
+$('checkpoint-back').addEventListener('click', () => { renderQuestion(); show('quiz'); });
 $('retry').addEventListener('click', reset);
 
 fetch(CONFIG.dbUrl)
@@ -581,6 +612,6 @@ fetch(CONFIG.dbUrl)
     b.disabled = false;
     b.textContent = '全アニメDBから1分で導く【運命の1作】ガチ診断';
     const day = (META.generated_at || '').slice(0, 10);
-    $('db-count').textContent = `収録 ${fmt(WORKS.length)} 作品${day ? `（${day} 更新）` : ''}・全${TOTAL}問`;
+    $('db-count').textContent = `収録 ${fmt(WORKS.length)} 作品${day ? `（${day} 更新）` : ''}・${QUICK}問から（最大${TOTAL}問）`;
   })
   .catch(() => show('error'));
