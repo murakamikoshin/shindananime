@@ -3,6 +3,12 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  X-Robots-Tag: noindex, follow
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   Cache-Control: public, max-age=0, must-revalidate
+
+# 本体のページは、検索に出すかを <head> の canonical（作品ページ）で決める。
+# プライバシーのページと、データのファイルは、検索に出さない
+/privacy/*
+  X-Robots-Tag: noindex, follow
+/*.json
+  X-Robots-Tag: noindex
