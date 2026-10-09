@@ -5,17 +5,21 @@
    0 = どちらでもない、-0.5 / -1 = B 側）。
    作品の軸は all_anime_db.json の v（同じ並び）。 */
 
-export const AXES = [
-  { key: 'world', label: '世界観', pos: 'R', neg: 'F', posName: 'リアル', negName: 'ファンタジー' },
-  { key: 'mood', label: '後味・刺激', pos: 'D', neg: 'H', posName: 'ダーク', negName: 'ハッピー' },
-  { key: 'structure', label: '構成・テンポ', pos: 'C', neg: 'S', posName: '伏線・考察', negName: 'テンポ・勢い' },
-  { key: 'taste', label: 'サブテイスト', pos: 'P', neg: 'A', posName: '心理戦', negName: 'アクション' },
-  { key: 'visual', label: '視覚・フェチ', pos: 'V', neg: 'T', posName: '映像美', negName: 'ストーリー' },
-  { key: 'watch', label: '視聴スタイル', pos: 'M', neg: 'L', posName: '熟読・考察', negName: 'サクッと' },
+import { T } from './strings.js';
+
+/* 文字列は strings.js（日本語・英語）。ここでは軸の記号と、計算に使う並びだけを持つ */
+const AX_BASE = [
+  { key: 'world', pos: 'R', neg: 'F' },
+  { key: 'mood', pos: 'D', neg: 'H' },
+  { key: 'structure', pos: 'C', neg: 'S' },
+  { key: 'taste', pos: 'P', neg: 'A' },
+  { key: 'visual', pos: 'V', neg: 'T' },
+  { key: 'watch', pos: 'M', neg: 'L' },
 ];
+export const AXES = AX_BASE.map((a, i) => ({ ...a, ...T.axes[i] }));
 
 /* 画質・年代の好み（-1〜+1）。+ ほど新しめ・高画質を好む。タイプコードには入れない */
-export const ERA = { key: 'era', label: '画質・年代', pos: 'N', neg: 'O', posName: '新しめ・高画質', negName: '年代不問' };
+export const ERA = { key: 'era', pos: 'N', neg: 'O', ...T.era };
 
 export function eraPref(questions, answers) {
   let sum = 0, n = 0;
@@ -34,27 +38,8 @@ export function eraAdjust(era, year) {
 }
 
 /* 好みの要素（追加の問題）。名前は画面に出す短い呼び方 */
-export const PREFS = {
-  love: '恋愛', gag: 'ギャグ', ensemble: '群像劇', cry: '泣ける', healing: '日常・癒し',
-  gore: 'グロ', ecchi: 'お色気', isekai: '異世界転生', sports: 'スポーツ', mecha: 'ロボット',
-  music: '音楽・アイドル', moe: '萌え絵', cg: '3DCG', kids: '子ども向け', long: '長編',
-  movie: '劇場版', short: 'ショート', popular: '話題作',
-  school: '学園', fantasy: 'ファンタジー', scifi: 'SF', historical: '時代劇', modern: '現代舞台',
-  horror: 'ホラー', mystery: 'ミステリー', adventure: '冒険', hotblood: '熱血・爽快',
-  family: '家族もの', work: 'お仕事もの', mature: '大人向け',
-};
-const PREF_WHY = {
-  love: '恋愛要素がしっかりある', gag: '笑える場面が多い', ensemble: 'キャラが入り乱れる群像劇',
-  cry: '思いっきり泣ける', healing: 'のんびり癒される', gore: '容赦のない描写の緊張感',
-  ecchi: 'お色気も楽しめる', isekai: '異世界転生もの', sports: '試合の熱さ', mecha: 'ロボット・メカの見せ場',
-  music: '歌と演奏が主役', moe: 'かわいい絵柄', cg: '3DCGの迫力', kids: '家族でも見られる',
-  long: 'どっぷり浸かれる長編', movie: '2時間で完結する劇場版', short: 'スキマ時間に見られる',
-  popular: 'みんなが見ている鉄板作',
-  school: '学園の空気感', fantasy: '剣と魔法の世界観', scifi: 'SF的なガジェット',
-  historical: '昔の時代の舞台', modern: '今の日本の身近さ', horror: 'ぞくぞくする怖さ',
-  mystery: '謎解きの駆け引き', adventure: '知らない土地への冒険', hotblood: '熱くて爽快な展開',
-  family: '家族の絆', work: '働く人たちの奮闘', mature: '渋く大人びた空気感',
-};
+export const PREFS = T.prefs;
+const PREF_WHY = T.prefWhy;
 
 /* 好みの要素の答え。{ love: 1, gore: -1, ... }。答えていないものは入れない */
 export function prefs(questions, answers) {
@@ -121,40 +106,21 @@ export function typeCode(u) {
 }
 
 /* 二つ名。決め打ちの 4 つ以外は、3 つの部品を組み合わせて 64 通り作る */
-const FIXED = {
-  'RDCP-VM': '深淵を覗く考察コレクター',
-  'FHSA-TL': '脳汁全開の爽快エンタメハンター',
-  'FDCA-VM': '異世界を旅するロマン追及者',
-  'RHSP-TL': '現実逃避のライトファン',
-};
-const PART_WORLD_MOOD = { RD: '深淵を覗く', RH: '日常を愛する', FD: '絶望の異界を征く', FH: '異世界を駆ける' };
-const PART_STRUCT_TASTE = { CP: '考察', CA: '伏線バトル', SP: '直感ドラマ', SA: '爽快エンタメ' };
-const PART_VISUAL_WATCH = { VM: 'コレクター', VL: 'ハンター', TM: 'アナリスト', TL: 'ランナー' };
+const FIXED = T.fixed;
+const PART_WORLD_MOOD = T.wm;
+const PART_STRUCT_TASTE = T.st;
+const PART_VISUAL_WATCH = T.vw;
 
 export function nickname(u) {
   const code = typeCode(u);
   if (FIXED[code]) return FIXED[code];
   const l = letters(u);
-  return PART_WORLD_MOOD[l[0] + l[1]] + PART_STRUCT_TASTE[l[2] + l[3]] + PART_VISUAL_WATCH[l[4] + l[5]];
+  return T.joinName(PART_WORLD_MOOD[l[0] + l[1]], PART_STRUCT_TASTE[l[2] + l[3]], PART_VISUAL_WATCH[l[4] + l[5]]);
 }
 
 /* 軸ごとの一言。タイプの説明と、刺さる理由に使う */
-const DESC = {
-  R: '地に足のついた人間ドラマに心が動く', F: '現実を忘れられる別世界ほど燃える',
-  D: '救いのない展開ほど記憶に残る', H: '逆転と大団円で満たされたい',
-  C: '伏線を拾って考察するのが楽しい', S: '勢いとテンポで一気に持っていかれたい',
-  P: '読み合いと行間のドラマが好き', A: '作画解放と迫力のバトルが好き',
-  V: '映像と演出のセンスでハマる', T: '脚本とストーリーの面白さで選ぶ',
-  M: '一話ずつ噛み締めて、考察まで読み漁る', L: '面白ければ一気見して、次の作品へ',
-};
-const WHY = {
-  R: '現実と地続きの手触り', F: '現実を忘れられる世界観',
-  D: '容赦のない展開と重い余韻', H: '最後に報われるカタルシス',
-  C: '伏線と考察しがいのある構成', S: '一話目から掴んでくるテンポ',
-  P: '読み合いと行間のドラマ', A: '熱量と迫力のある見せ場',
-  V: '何度も見返したくなる映像と演出', T: '先が気になる脚本の強さ',
-  M: 'じっくり向き合うほど味が出る深さ', L: '気軽に一気見できる軽やかさ',
-};
+const DESC = T.desc;
+const WHY = T.why;
 
 export function describe(u) {
   return AXES.map((a, i) => ({ i, w: Math.abs(u[i]) }))

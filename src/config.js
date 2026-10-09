@@ -1,5 +1,7 @@
 /* 収益まわりの設定。ここだけ書き換えれば、画面の側は触らなくていい。 */
-export const CONFIG = {
+import { EN } from './lang.js';
+
+const BASE = {
   appUrl: 'https://koshinstudio.com/app/shindananime/',
   aboutUrl: 'https://koshinstudio.com/works/shindananime/',
   privacyUrl: 'https://koshinstudio.com/privacy/',
@@ -138,3 +140,18 @@ export const CONFIG = {
      他所で使われる前提のもの。持ち主がリスクを承知の上で出す判断をした（2026-09-25） */
   showImages: true,
 };
+
+/* 英語版（/app/shindananime/en/）。ページが 1 つ深いので、データの場所は ../ から。
+   配信ボタンは app.js の vodButtonsEn（世界のどこでも使える入口）を使うので、vod は空 */
+const EN_CONF = {
+  appUrl: 'https://koshinstudio.com/app/shindananime/en/',
+  aboutUrl: 'https://koshinstudio.com/en/works/shindananime/',
+  privacyUrl: 'https://koshinstudio.com/en/privacy/',
+  dbUrl: '../all_anime_db.json',
+  titlesUrl: '../en-titles.json',
+  vod: [],
+  shareText: 'My anime type is [{code}: {name}]! My destined pick is “{title}” ({match}% match). What is yours?',
+  shareTags: ['AnimeQuiz', 'Anime'],
+};
+
+export const CONFIG = EN ? { ...BASE, ...EN_CONF } : BASE;

@@ -33,5 +33,16 @@ writeFileSync(html, readFileSync(html, 'utf8')
   .replace('./styles.css"', `./styles.css?v=${mark('styles.css')}"`)
   .replace('./app.js"', `./app.js?v=${mark('app.js')}"`));
 
+/* 英語版（/en/）。ページは 1 つ深いので、CSS と JS は ../ から読む。印も同じように付ける */
+const enHtml = join(out, 'en/index.html');
+if (existsSync(enHtml)) {
+  writeFileSync(enHtml, readFileSync(enHtml, 'utf8')
+    .replace('../styles.css"', `../styles.css?v=${mark('styles.css')}"`)
+    .replace('../app.js"', `../app.js?v=${mark('app.js')}"`));
+}
+/* 英語題名（AniList）。tools/make_en_titles.py が data/en_titles.json に作る */
+const enTitles = join(root, 'data', 'en_titles.json');
+if (existsSync(enTitles)) cpSync(enTitles, join(out, 'en-titles.json'));
+
 const data = JSON.parse(readFileSync(join(out, 'all_anime_db.json'), 'utf8'));
 console.log(`dist/: ${data.works.length} 作（${data.meta.source}）`);
