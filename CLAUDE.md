@@ -79,3 +79,12 @@ Filmarks の画面の作りが変わったら `SEL` / `FM_LIST_PATHS` を直し�
 気をつけること
 - `all_anime_db.json` は手元で作ったものが正。クラウド側からは push しない約束
 - Python は Mac 標準の 3.9。ターミナルを開いたら `source .venv/bin/activate` を先に
+
+## 英語版（2026-10-09 追加）
+
+- `src/lang.js` が `<html lang>` を見て ja/en を決める。`/en/` のページ（`src/en/index.html`、手で訳した HTML）は lang="en"
+- 文字列は `src/strings.js`（ja と en）。質問は日本語が `questions.js`、英語が `questions.en.js`（基本 20 問は添字、好みの要素は key で引く）。計算（logic.js）は文字列を `T` から読むだけで、数式は共通
+- 英語版の作品名は `data/en_titles.json`（`{id: [英語題名, AniList, MAL]}`）。`tools/make_en_titles.py <titles.jsonl>` が AniList で引いた結果から作り、`tools/build.mjs` が `dist/en-titles.json` に写す。年が ±1 で合ったものだけ採用（シリーズ 2 期以降は最初の期の題名で補う）。取れなかった作品は日本語の題名のまま出る
+- 英語版では、あらすじ（日本語）は出さず、配信ボタンは日本のサービスではなく AniList・JustWatch・Crunchyroll の検索（アフィリエイトなし）
+- 検査: `node tools/build.mjs && node tools/e2e_en.mjs`（画面に日本語が残らないか、通しで押す）。日本語版は従来どおり `npm run check`
+- 英語題名の取り直し: AniList の API は毎分 30 リクエスト（束ねて 1 リクエストに 15 件、4 並列で約 40 分）
