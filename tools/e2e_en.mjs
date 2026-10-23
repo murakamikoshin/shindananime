@@ -2,7 +2,7 @@
        node tools/build.mjs && node tools/e2e_en.mjs
    画面に日本語が残っていないか（作品名の元題名を除く）、エラーが出ていないかを見る。 */
 import { serve, BASE } from './serve.mjs';
-import { chromium } from '/Users/murakami/Desktop/koshin/koshin-studio/tools/node_modules/playwright-core/index.mjs';
+import { chromium } from '/Users/murakami/Desktop/koshinstudio/koshin-studio/tools/node_modules/playwright-core/index.mjs';
 
 const server = await serve(0);
 const url = `http://127.0.0.1:${server.address().port}${BASE}en/`;
